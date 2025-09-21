@@ -1,0 +1,14 @@
+.git
+.gitignore
+novel_verse/
+__pycache__/
+*.pyc
+*.log
+*.env
+docker-compose.yml
+docker-compose.*.yml
+test.pyc
+Dockerfile-* # Ignore other Dockerfiles if you only need one in the build context
+README.md
+*.md
+# Add any other directories or files you don't need in the image

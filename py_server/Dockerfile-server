@@ -1,0 +1,11 @@
+# Use the base image
+FROM py-base
+
+# Copy the server application code
+COPY . /app/
+
+# Expose the server port
+EXPOSE 4001
+
+# Set the command to run the server
+CMD ["/app/venv/bin/python", "/app/server.py"]

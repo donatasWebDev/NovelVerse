@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+type BookChList {
+  chapterNumber Int?
+  chapterURL    String?
+  title         String
+  text          String?
+}
+
+model Book {
+  id               String          @id @default(auto()) @map("_id") @db.ObjectId
+  v                Int             @default(0) @map("__v")
+  author           String
+  bookURL          String          @unique
+  categoryList     String[]
+  chList           BookChList[]
+  coverImg         String
+  isComplete       Boolean
+  numberOfChapters String
+  title            String          @unique
+  userFavorites    FavoriteBooks[] @relation("favoriteBooks")
+  categorysIds     String[]        @db.ObjectId
+  categorys        Category[]      @relation(fields: [categorysIds], references: [id])
+  LatestRead       LatestRead[]    @relation("latestRead")
+}
+
+model User {
+  id            String          @id @default(auto()) @map("_id") @db.ObjectId
+  v             Int             @default(0) @map("__v")
+  email         String          @unique(map: "email_1")
+  emailVerified Boolean
+  name          String          @unique(map: "name_1")
+  latestRead    LatestRead?     @relation("latestReadUser", fields: [latestReadId], references: [id])
+  latestReadId  String?         @unique @db.ObjectId
+  password      String
+  favoriteBooks FavoriteBooks[]
+}
+
+model LatestRead {
+  id        String @id @default(auto()) @map("_id") @db.ObjectId
+  bookId    String @db.ObjectId
+  book      Book   @relation("latestRead", fields: [bookId], references: [id])
+  chapterId String @db.ObjectId
+  user      User?  @relation("latestReadUser")
+}
+
+model FavoriteBooks {
+  id     String @id @default(auto()) @map("_id") @db.ObjectId
+  v      Int    @default(0) @map("__v")
+  bookId String @db.ObjectId
+  book   Book   @relation("favoriteBooks", fields: [bookId], references: [id])
+  userId String @db.ObjectId
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@unique([userId, bookId])
+}
+
+model Category {
+  id       String   @id @default(auto()) @map("_id") @db.ObjectId
+  v        Int      @default(0) @map("__v")
+  name     String   @unique
+  booksIds String[] @db.ObjectId
+  books    Book[]   @relation(fields: [booksIds], references: [id])
+}

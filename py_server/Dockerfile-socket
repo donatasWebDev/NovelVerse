@@ -1,0 +1,11 @@
+# Use the base image
+FROM py-base
+
+# Copy the socket application code
+COPY .  /app/
+
+# Expose the socket application port
+EXPOSE 12345
+
+# Set the command to run the socket application
+CMD ["/app/venv/bin/python", "/app/py_socket.py"]

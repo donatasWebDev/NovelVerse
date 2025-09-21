@@ -1,0 +1,16 @@
+{
+  "compilerOptions": {
+    "target": "es2020", // or your desired target
+    "module": "commonjs", // or "esnext" for modules
+    "outDir": "./dist", // Output directory for compiled JavaScript
+    "rootDir": "./", // Source directory for TypeScript files
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "moduleResolution": "node",
+    "allowJs": true // Add this line
+  },
+  "include": ["**/*"],
+  "exclude": ["node_modules"]
+}

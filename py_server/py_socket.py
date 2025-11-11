@@ -47,6 +47,9 @@ buffer_data_lock = asyncio.Lock()
 socket_data = {}
 socket_data_lock = threading.Lock()
 
+active_tasks = {}
+active_tasks_lock = asyncio.Lock()
+
 connected_clients = set()
 
 
@@ -57,11 +60,6 @@ def handle_exit():
     print("Exiting...")
     task_queue.stop()
     # os.kill(os.getpid(), signal.SIGTERM)'
-
-def stop_audio_stream_id(worker_id):
-    task_queue.stop_worker(worker_id)
-    logging.info(f"Audio stream with ID {worker_id} stopped.")
-
 def json_to_bytes(data):
     return json.dumps(data).encode("utf-8") + b"\n"
 
@@ -76,8 +74,8 @@ async def send_message(message, websocket, messageType="info", needResponse=Fals
         await websocket.send(json.dumps(payload))
     except Exception as e:
         logging.error(f"Error sending message: {e}")
-        await websocket.close()
-        handle_exit()
+        connected_clients.remove(websocket)
+        websocket.close()
 
 async def send_audio_chunk(websocket):
     """Encodes and sends an audio chunk as MP3 via WebSocket from the primary buffer."""
@@ -157,7 +155,8 @@ async def send_audio_chunk(websocket):
             if websocket in buffer_data:
                 buffer_data[websocket]["primary_buffer"] = bytearray() # Clear buffer on error
                 buffer_data[websocket]["secondary_buffer"] = bytearray()
-        stop_task(websocket)
+        connected_clients.remove(websocket)
+        websocket.close()
         return 0 # Return 0 duration on error to prevent long waits
     
 async def scrape_novel(url, ch_nr, websocket):
@@ -181,7 +180,18 @@ async def scrape_novel(url, ch_nr, websocket):
 def get_data(websocket):
     with socket_data_lock:
         return socket_data.get(websocket, {})  # Get existing data or empty dict
-     
+
+
+async def watch_websocket_disconnect(websocket):
+    try:
+        await websocket.wait_closed()  # Waits until client disconnects
+    finally:
+        async with active_tasks_lock:
+            task_queue.cleanup_socket(websocket)
+            if websocket in active_tasks:
+                t = active_tasks.pop(websocket)
+                t.cancel()
+                logging.info(f"WebSocket {websocket} disconnected — canceled Task {t.task_id}")
 
 async def generate_audio(text, websocket):
     print("generating audio")
@@ -194,11 +204,17 @@ async def generate_audio(text, websocket):
     logging.info(f"Starting to create audio stream: {text}")
     await send_message(f"Starting to create audio stream: {text}", websocket, "info")
 
-    task_id = str(uuid.uuid4())
+    task_id = str(uuid.uuid4()) # Generate a unique task ID
     duration = (len(text.split()) / WPM) * 60
     await send_message({"duration": duration, "WPM": WPM, "text": text}, websocket, "audio-info")
     with socket_data_lock:
-        task_queue.put_task(Task(task_id, websocket, text))
+        prev_data = socket_data.get(websocket, {})
+        socket_data[websocket] = {**prev_data, "task_id": task_id} # Store the unique task_id
+        task = Task(task_id, websocket, text)
+        async with active_tasks_lock:
+            active_tasks[websocket] = task
+        asyncio.create_task(watch_websocket_disconnect(websocket))
+        task_queue.put_task(task) # Pass the unique task_id to the Task constructor
 
 
 
@@ -213,8 +229,9 @@ async def generate_audio(text, websocket):
 
     try:
         while True:
-            res = await asyncio.to_thread(task_queue.get_result, timeout=2)
-           
+
+            res = await asyncio.to_thread(task_queue.get_result, websocket, timeout=2)
+
             if res is None:
                 should_break_loop = False
                 async with buffer_data_lock:
@@ -231,8 +248,13 @@ async def generate_audio(text, websocket):
 
                 await asyncio.sleep(0.1)
                 continue
-            res_task_id, res_socket_id, chunk, is_end = res
+            res_task, chunk, is_end = res
             data_payload =  chunk
+
+            if task.is_canceled():
+                logging.info(f"WebSocket {websocket} Task canceled. Stopping audio generation.")
+                break
+
             if is_end:
                 logging.info(f"End-of-stream marker for {websocket}")
                 await send_message({"end_stream": True}, websocket, "end")
@@ -240,7 +262,7 @@ async def generate_audio(text, websocket):
 
             if isinstance(data_payload, bytes):
                 error_message = data_payload.decode('utf-8', errors='ignore')
-                logging.error(f"Worker {res_task_id} sent an error: {error_message}")
+                logging.error(f"Worker {res_task.task_id} sent an error: {error_message}")
                 await send_message({"error": f"Worker error: {error_message}"}, websocket, "error")
                 continue # Skip processing this chunk, go to the next iteration
            
@@ -306,6 +328,7 @@ async def check_auth(websocket):
     res = requests.post(URL, data=data)
     if res.status_code == 200:
         print(res.text)
+        asyncio.create_task(watch_websocket_disconnect(websocket))
         return True  
 
     if res.status_code != 200:
@@ -351,9 +374,9 @@ async def skip_to(websocket,time=0, ):
 
 async def stop_task(websocket):
     data = get_data(websocket)
-    task_id = data["task_id"]
+    task_id = data.get("task_id")
     if task_id:
-        task_queue.stop_worker(task_id)
+        task_queue.cancel_task(task_id)
         return True
     return False
 
@@ -386,8 +409,6 @@ async def handle_client(websocket):
                         await send_message(f"User {user_id} already connected", websocket)
                         return
             await add_user(user_id, token, websocket)
-
-            # # **Create an async task for message handling**
             message_handler_task = asyncio.create_task(handle_messages(websocket, client_address))
 
             # **Keep handle_client running until the connection is closed (e.g., when handle_messages finishes)**
@@ -452,6 +473,7 @@ async def handle_messages(websocket, client_address):
         print(f"Error with {client_address}: {e}")
     finally:
         connected_clients.remove(websocket)
+        await stop_task(websocket) # Ensure task is canceled on disconnect
         print(f"User disconnected. Total users: {len(connected_clients)}")
 
 
@@ -460,7 +482,6 @@ async def run_server(port):
     # host = '127.0.0.1'
     port = port
     print(f"Server listening on {host}:{port}")
-    signal.signal(signal.SIGINT, lambda sig, frame: handle_exit())
     task_queue.start(worker_function)
     try:
         async with websockets.serve(handle_client, host, port) as server:

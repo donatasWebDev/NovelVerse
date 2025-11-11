@@ -42,8 +42,8 @@ export const AudioPlayerPage = ({
   useEffect(() => {
     if (!isConnected) {
       connect(
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY3ZDcyODk1MTNjMjMyMTI4MWI4NjY1OSIsImlhdCI6MTc1MjkzODA4OCwiZXhwIjoxNzU1NTMwMDg4fQ.XMtn3qSk5uWjP6CdjbYEUcltnDJAs0clYupkyxhRVEU",
-        "67d7289513c2321281b86659"
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4OWYwYWY0OTE4ZGMwMDhlNzRlNDk4ZCIsImlhdCI6MTc2MjAwNDIyNiwiZXhwIjoxNzY0NTk2MjI2fQ.s8zjwrqcarzGz2mWMx228i7FavpPQwoNZsQLQfddWAM",
+        "689f0af4918dc008e74e498d"
       );
     }
   }, []);

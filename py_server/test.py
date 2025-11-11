@@ -8,8 +8,6 @@ import sys
 from collections import deque
 import soundfile as sf
 
-logging.basicConfig(level=logging.INFO,
-                    format='%(asctime)s - %(threadName)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 # Attempt to import kokoro and torch
 try:

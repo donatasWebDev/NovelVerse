@@ -19,6 +19,7 @@ py_server/*.pyc
 py_server/*.pyo
 py_server/venv/
 py_server/outputs/
+py_server/output/
 py_server/*.mp3
 py_server/*.wav
 py_server/ffmpeg.exe

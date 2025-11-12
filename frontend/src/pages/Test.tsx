@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useSocket } from "../uttils/socketConnection";
+import { useAuth } from "../uttils/AuthContex";
 
 export const Test = () => {
   const { connect, isConnected, socket, sendMessage, audio: audioChunks } = useSocket(); // Renamed to audioChunks
@@ -8,15 +9,16 @@ export const Test = () => {
   const sourceBufferRef = useRef<SourceBuffer | null>(null);
   const [mimeType, setMimeType] = useState<string | null>(null);
   const [isSourceOpen, setIsSourceOpen] = useState(false);
+  const [user] = useAuth()
 
   useEffect(() => {
-    if (!isConnected) {
+    if (!isConnected && user) {
       connect(
         "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY3ZDcyODk1MTNjMjMyMTI4MWI4NjY1OSIsImlhdCI6MTc0Njg5MjM4NCwiZXhwIjoxNzQ5NDg0Mzg0fQ.j5sKNP-nz2l9xeejWMXePxNjefiJhJfKo5iEMLPcwdk",
-        "67d7289513c2321281b86659"
+        user?.id
       );
     }
-  }, [connect, isConnected, socket]);
+  }, [connect, isConnected, socket, user]);
 
   useEffect(() => {
     if (audioRef.current && !mediaSourceRef.current) {

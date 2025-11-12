@@ -40,8 +40,8 @@ export const useSocket = (url: string = URL) => {
             try {
                 let obj =  JSON.parse(event.data)
                 console.log(obj)
-                if (obj.type == "info"){
-                    console.log("message: ", obj.message )
+                if (obj.type != "audio"){
+                    // console.log("message: ", obj.message )
                     data = JSON.parse(obj.toString());
                 }
                 if (obj.type == "audio"){
@@ -62,11 +62,11 @@ export const useSocket = (url: string = URL) => {
                     // attemptAppend();
                 }
                 else {
-                    console.log("got message type: ",obj.type )
+                    // console.log("got message type: ",obj.type )
                     console.log(obj)
                 }
             } catch (e) {
-                data = event.data; // If not JSON, use raw data
+                data = JSON.parse(event.data.toString());; // If not JSON, use raw data
             }
             setMessages((prevMessages) => [...prevMessages, data]);
         };

@@ -202,7 +202,8 @@ async def generate_audio(text, websocket):
         return
 
     logging.info(f"Starting to create audio stream: {text}")
-    await send_message(f"Starting to create audio stream: {text}", websocket, "info")
+    # await send_message(f"starting audio generation", websocket, "info")
+    # await send_message(f"{text}", websocket, "info_script")
 
     task_id = str(uuid.uuid4()) # Generate a unique task ID
     duration = (len(text.split()) / WPM) * 60

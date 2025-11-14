@@ -13,7 +13,9 @@ import {
 // import { useNavigate } from "react-router-dom";
 import { ChDropDown } from "../components/chDropDown"
 import Player, { PlayerCompRef } from "../components/Player"
-import { useSocket } from "../uttils/socketConnection";
+import { useSocketContext  } from "../uttils/socketContext";
+import { useAuth } from "../uttils/AuthContex";
+import { useLibrary } from "../uttils/LibraryContext";
 // import { useLibrary } from "../uttils/LibraryContext";
 
 interface AudioPlayerPageProps {
@@ -30,32 +32,31 @@ export const AudioPlayerPage = ({
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showDropDown, setShowDropDown] = useState(false);
-  const speeds = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+  const [audioLoaded, setAudioLoaded] = useState<boolean>(false);
+  const speeds = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5];
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const playerRef = useRef<PlayerCompRef>(null); // Ref to access Player component
   const [loading, setLoading] = useState<boolean>(true);
-
+  const [chapterInfo, setChapterInfo] = useState<any>(null)
+  const {user} = useAuth()
+  const {streamKey} = useLibrary()
   const [lastChunkSentIndex, setLastChunkSentIndex] = useState(-1);
 
-  const { connect, isConnected, socket, sendMessage, audio: socketAudioChunks } = useSocket()
+  const { connect, isConnected, sendMessage, messages, audio: socketAudioChunks } = useSocketContext()
+
+
+
 
   useEffect(() => {
-    if (!isConnected) {
+    if (!isConnected && streamKey && user) {
       connect(
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4OWYwYWY0OTE4ZGMwMDhlNzRlNDk4ZCIsImlhdCI6MTc2MjAwNDIyNiwiZXhwIjoxNzY0NTk2MjI2fQ.s8zjwrqcarzGz2mWMx228i7FavpPQwoNZsQLQfddWAM",
-        "689f0af4918dc008e74e498d"
+        streamKey, user?.id
       );
     }
-  }, []);
-
-  // useEffect(() => {
-  //   if (!isConnected) {
-  //     connect(
-  //       "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY3ZDcyODk1MTNjMjMyMTI4MWI4NjY1OSIsImlhdCI6MTc0OTkzMjAxOSwiZXhwIjoxNzUyNTI0MDE5fQ.9vyzvLNRI-kfBmdwm6ZMHTefYQJe-0ywVRlJrLwxogk",
-  //       "67d7289513c2321281b86659"
-  //     );
-  //   }
-  // }, [connect, isConnected, socket]);
+    if (isConnected && streamKey && user) {
+      handleSendMessagePlay();
+    }
+  }, [streamKey, isConnected, user])
 
   useEffect(() => {
     if (!book && !chapter) {
@@ -73,6 +74,23 @@ export const AudioPlayerPage = ({
     handleGetCurrentChapterAudio(currentChapter.chapterURL)
 
   }, [chapter, book])
+
+  useEffect(() => {
+    if (messages && messages.length > 0 && !chapterInfo) {
+      let info = messages.find((m) => m.type === "audio-info")
+      if (info) {
+        setChapterInfo(info)
+      }
+
+    }
+  }, [messages ])
+
+  useEffect(() => {
+      if (socketAudioChunks.length >0 && !audioLoaded) {
+        setIsPlaying(true);
+        setAudioLoaded(true);
+      }
+  }, [socketAudioChunks])
 
 
   const handlePlayerRequestsMoreData = useCallback(() => {
@@ -167,7 +185,8 @@ export const AudioPlayerPage = ({
     setShowSpeedMenu(false);
   }
   const handleSendMessagePlay = () => {
-    sendMessage("play https://novelbin.me/novel-book/soul-emperor-martial-god 1");
+    // sendMessage("play https://novelbin.me/novel-book/soul-emperor-martial-god 1");
+    sendMessage(`play ${book.bookURL} ${chapter}`);
   };
 
 
@@ -181,10 +200,10 @@ export const AudioPlayerPage = ({
         <button className="min-w-fit w-full text-gray-400 hover:text-gray-300 flex gap-3 md:relative"
           onClick={handleShowDropDown}
         >
-          <ChevronDown className="w-6 h-6" />
-          <span>Chpaters</span>
+          <ChevronDown className={`${showDropDown ? "rotate-180" : ""} transition-transform w-6 h-6`} />
+          <span>Chapters</span>
           <div className={`${showDropDown ? "" : "hidden"}`}>
-            <ChDropDown chList={book.chList} />
+            <ChDropDown chList={book.chList} currentChapterNumber={chapter} />
           </div>
         </button>
         <button
@@ -209,49 +228,12 @@ export const AudioPlayerPage = ({
       </div>
       {/* Text Display (Conditional) */}
       {showText && (
-        <div className="bg-gray-800 rounded-lg p-4 mb-8 max-h-80 overflow-y-auto scrollbar-thin scrollbar-track-gray-700 scrollbar-thumb-gray-600">
-          <p className="text-gray-300 leading-relaxed">
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do
-            eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim
-            ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut
-            aliquip ex ea commodo consequat...
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do
-            eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim
-            ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut
-            aliquip ex ea commodo consequat...
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do
-            eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim
-            ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut
-            aliquip ex ea commodo consequat...
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do
-            eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim
-            ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut
-            aliquip ex ea commodo consequat...
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do
-            eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim
-            ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut
-            aliquip ex ea commodo consequat...
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do
-            eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim
-            ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut
-            aliquip ex ea commodo consequat...
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do
-            eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim
-            ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut
-            aliquip ex ea commodo consequat...
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do
-            eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim
-            ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut
-            aliquip ex ea commodo consequat...
-            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do
-            eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim
-            ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut
-            aliquip ex ea commodo consequat...
+        <div className="bg-gray-800 rounded-lg p-4 mb-8 h-80 overflow-y-auto scrollbar-thin resize scrollbar-track-gray-700 scrollbar-thumb-gray-600">
+          <p className="text-gray-300 hyphens-auto text-2xl leading-9">
+            {chapterInfo?.message.text || "loading.."}
           </p>
         </div>
       )}
-
-      <button onClick={handleSendMessagePlay} className='px-4 py-2 border-2 my-4 border-white text-white font-bold'>Send Play</button>
       {/* Audio Controls */}
       <div className="">
         {/* Progress Bar */}
@@ -260,9 +242,9 @@ export const AudioPlayerPage = ({
           isPlaying={isPlaying}
           setterIsPlaying={handlePlayPause}
           playSpeed={playbackSpeed}
-          loading={loading}
+          loading={audioLoaded}
           onRequestMoreData={handlePlayerRequestsMoreData}
-          duration={200}
+          duration={chapterInfo?.message.duration || 0}
         />
         {/* Main Controls */}
         <div className="flex items-center justify-center gap-6 mb-4">

@@ -28,7 +28,7 @@ export const SideNav = () => {
         <span className="text-sm font-medium text-gray-300">Library</span>
       </button>
       <button className="flex items-center gap-3 text-gray-400 hover:bg-gray-700 p-3 rounded-lg transition-colors"
-      onClick={() => navigate("/test")}>
+      onClick={() => navigate("/")}>
         <Play className="w-6 h-6" />
         <span className="text-sm font-medium text-gray-300">Play</span>
       </button>

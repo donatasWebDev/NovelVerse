@@ -19,7 +19,7 @@ interface LibraryContextType {
   loading: boolean;
   currentBook: BookCurrent | null;
   streamKey: string | null;
-  fetchLibrary: () => void;
+  fetchLibrary: (page: number, q: string) => void;
   handleSetCurrentBook: (book: BookCurrent) => void;
   getBookChapters: (book: Book, currect_ch: String) => void
   getCurrentBook: () => BookCurrent | null;
@@ -34,9 +34,10 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [library, setLibrary] = useState<LibraryType | null>(null);
   const [currentBook, setCurrentBook] = useState<BookCurrent | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [page, setPage] = useState<number>(1);
   const [streamKey, setStreamKey] = useState<string | null>(null)
   const navigate = useNavigate();
-  const {user} = useAuth()!
+  const { user } = useAuth()!
 
   useEffect(() => {
     if (library) {
@@ -50,35 +51,53 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
     if (!streamKey) {
       getStreamKey()
-      .then((streamKey) => {
-        setStreamKey(streamKey.token)
-      })
+        .then((streamKey) => {
+          setStreamKey(streamKey.token)
+        })
     }
-    fetchLibrary()
-
   }, [])
 
-  useEffect( () => {
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const pageQuery = params.get("page");
+    const q = params.get("q") || "";
+
+
+    const newPage = pageQuery ? parseInt(pageQuery, 10) : 1;
+
+    // Only update if changed
+    if (newPage !== page) {
+      setPage(newPage);
+      fetchLibrary(newPage, q);
+    }
+    else {
+      fetchLibrary(page, q)
+    }
+  }, [location.search]);
+
+  useEffect(() => {
     if (streamKey) {
       if (!user) {
         navigate("/login");
         return;
       }
       verifyStreamKey(streamKey, user.id)
-       .then((res: any) => {
+        .then((res: any) => {
           console.log(res)
         })
-       .catch((err: any) => {
+        .catch((err: any) => {
           console.log(err)
           setStreamKey(null)
         })
     }
-  },[streamKey])
+  }, [streamKey])
 
 
-  const fetchLibrary = async () => {
+
+  const fetchLibrary = async (page: number, q: string = "") => {
     try {
-      const response = await axios.get(`${url}/get/books?page=2`);
+      console.log("fetching library page", page)
+      const response = await axios.get(`${url}/get/books?page=${page}&q=${q}`);
       if (response.data) {
         setLibrary(response.data as LibraryType)
         // navigate("/")
@@ -225,8 +244,8 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   const verifyStreamKey = async (streamKey: string, id: string) => {
     try {
-      console.log("verifyStreamKey", { streamKey: streamKey, userId: id, message: "front"})
-      const res = await axios.post(`${url}/verify/`, { streamKey: streamKey, userId: id, message: "front"})
+      console.log("verifyStreamKey", { streamKey: streamKey, userId: id, message: "front" })
+      const res = await axios.post(`${url}/verify/`, { streamKey: streamKey, userId: id, message: "front" })
       if (res.data) {
         console.log("streamKey verified")
         return true;

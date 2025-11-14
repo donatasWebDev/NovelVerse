@@ -18,39 +18,6 @@ export interface PlayerCompRef {
   processIncomingChunk: (chunk: ArrayBuffer) => void; // New imperative method to receive a chunk
   isAwaitingMoreData: () => boolean; // New method for parent to query buffer status
 }
-//*testing
-import { useSocket } from "../uttils/socketConnection";
-
-
-const resBook: BookCurrent = {
-  chList: [
-    {
-      bookId: "SAfdsadsda",
-      chapterURL: "https://novelbin.me/novel-book/starting-my-cultivation-with-time-management/chapter-1-1-the-junior-sister-always-challenges-me",
-      title: "Chapter 1 - 1 The Junior Sister Always Challenges Me",
-      text: null,
-      nr: "1"
-    },
-  ],
-  id: "67d6dd5785c385d9cc3e8f99",
-  author: "Ghostly Blessing",
-  bookURL: "https://novelbin.me/novel-book/starting-my-cultivation-with-time-management",
-  categoryList: [
-    "Game",
-    "Xianxia"
-  ],
-  coverImg: "https://novelbin.me/media/novel/starting-my-cultivation-with-time-management.jpg",
-  isComplete: false,
-  title: "Starting My Cultivation With Time Management",
-  progress: 0,
-  currentChapter: 1,
-  numberOfChapters: 10,
-  currentChapterTitle: "Chapter 2 - 2 Hurry up and get married, you two",
-  isPlaying: false,
-  speed: 1
-}
-
-//*testing end
 
 const Player = forwardRef<PlayerCompRef, Props>(({ isPlaying, duration, setterIsPlaying, playSpeed, loading, onRequestMoreData }, ref) => {
 
@@ -58,6 +25,10 @@ const Player = forwardRef<PlayerCompRef, Props>(({ isPlaying, duration, setterIs
   const sourceBufferRef = useRef<SourceBuffer | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [isSeeking, setIsSeeking] = useState(false)
+  const isSeekingRef = useRef<boolean>(false);
+  const [currentTime, setCurrentTime] = useState<number>(0); // seconds
+  const [localDuration, setLocalDuration] = useState<number>(duration || 0); // seconds
+  const [bufferedEnd, setBufferedEnd] = useState<number>(0); // seconds - end of the last buffered range
 
   const [internalAppendQueue, setInternalAppendQueue] = useState<ArrayBuffer[]>([]);
   const [isSourceOpen, setIsSourceOpen] = useState(false);
@@ -107,6 +78,58 @@ const Player = forwardRef<PlayerCompRef, Props>(({ isPlaying, duration, setterIs
     };
   }, []); // Empty dependency array: runs once on mount
 
+
+  // Sync prop duration into localDuration and log for debugging when prop changes
+  useEffect(() => {
+    setLocalDuration(duration || 0);
+  }, [duration]);
+
+  // Attach audio element event listeners to update currentTime and duration reliably
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const handleTimeUpdate = () => {
+      // Only update state when not actively seeking (seeking uses direct set)
+      if (!isSeekingRef.current) setCurrentTime(audio.currentTime);
+
+      // Update buffered end time from the source buffer if available
+      try {
+        const sourceBuffer = sourceBufferRef.current;
+        if (sourceBuffer && sourceBuffer.buffered && sourceBuffer.buffered.length > 0) {
+          const bEnd = sourceBuffer.buffered.end(sourceBuffer.buffered.length - 1);
+          setBufferedEnd(bEnd);
+        }
+      } catch (e) {
+        // ignore any exceptions when reading buffered ranges
+      }
+    };
+
+    const handleLoadedMetadata = () => {
+      // If parent didn't provide a duration, use the audio's metadata duration
+      if (!duration || duration === 0) {
+        setLocalDuration(audio.duration || 0);
+      }
+    };
+
+    audio.addEventListener('timeupdate', handleTimeUpdate);
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
+
+    // initialize
+    setCurrentTime(audio.currentTime || 0);
+    if (!duration || duration === 0) setLocalDuration(audio.duration || 0);
+
+    return () => {
+      audio.removeEventListener('timeupdate', handleTimeUpdate);
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
+    };
+  }, [audioRef, duration]);
+
+  // Keep a ref in sync with isSeeking state so event handlers see the latest value
+  useEffect(() => {
+    isSeekingRef.current = isSeeking;
+  }, [isSeeking]);
+
   const processAppendQueue = useCallback(() => {
     const sourceBuffer = sourceBufferRef.current;
     if (!sourceBuffer || sourceBuffer.updating || internalAppendQueue.length === 0 || !isSourceOpen) {
@@ -139,9 +162,8 @@ const Player = forwardRef<PlayerCompRef, Props>(({ isPlaying, duration, setterIs
     const audio = audioRef.current;
     const sourceBuffer = sourceBufferRef.current;
 
-    const TARGET_BUFFER_SECONDS = 5; // Aim for 5 seconds of buffer ahead
-    const REQUEST_THRESHOLD_SECONDS = 2; // Request more if less than 2 seconds ahead
-    const MIN_INITIAL_CHUNKS = 3; 
+  const TARGET_BUFFER_SECONDS = 5; // Aim for 5 seconds of buffer ahead
+  const REQUEST_THRESHOLD_SECONDS = 2; // Request more if less than 2 seconds ahead
 
     if (audio && sourceBuffer && sourceBuffer  && isSourceOpen && !sourceBuffer.updating) {
       const currentTime = audio.currentTime;
@@ -150,6 +172,9 @@ const Player = forwardRef<PlayerCompRef, Props>(({ isPlaying, duration, setterIs
         // Get the last buffered range end point
         bufferedEnd = sourceBuffer.buffered.end(sourceBuffer.buffered.length - 1);
       }
+
+      // Publish buffered end to state so UI can display it
+      setBufferedEnd(bufferedEnd);
 
       const bufferedAhead = bufferedEnd - currentTime;
       console.log(`Player: Buffered ahead: ${bufferedAhead.toFixed(2)} seconds`);
@@ -198,7 +223,7 @@ const Player = forwardRef<PlayerCompRef, Props>(({ isPlaying, duration, setterIs
     skipBackward: (e) => {
       e.preventDefault()
       if (audioRef.current) {
-        audioRef.current.currentTime += 10;
+        audioRef.current.currentTime = Math.max(0, (audioRef.current.currentTime || 0) - 10);
       }
     },
     processIncomingChunk: (chunk: ArrayBuffer) => {
@@ -247,22 +272,31 @@ const Player = forwardRef<PlayerCompRef, Props>(({ isPlaying, duration, setterIs
     return `${formattedMinutes}:${formattedSeconds}`;
   };
 
-  const handleSeekChange = () => {
-
+  const handleSeekChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!localDuration || localDuration === 0) return;
+    const percent = Number(e.target.value);
+    const newTime = (percent / 100) * localDuration;
+    setCurrentTime(newTime);
   }
-  const handleSeekEnd = () => {
 
+  const handleSeekEnd = () => {
+    setIsSeeking(false);
+    if (audioRef.current) {
+      // Apply the seek to the underlying audio element
+      audioRef.current.currentTime = currentTime;
+    }
   }
 
   return (
     <div className="flex flex-col items-center rounded-lg shadow-lg h-auto w-full">
 
-      <audio ref={audioRef} controls>
+      {/* add controls to make it visible */}
+      <audio ref={audioRef} >
       </audio>
 
       {/* Loadking circle */}
       {
-        isSourceOpen ? (
+        !loading ? (
           <div className="flex justify-center items-center w-10 h-10 rounded-full  bg-gradient-to-t from-purple-600 via-30% to-gray-900 animate-spin"></div>
         ) : (
           <></>
@@ -273,23 +307,43 @@ const Player = forwardRef<PlayerCompRef, Props>(({ isPlaying, duration, setterIs
 
       {/* Progress Bar */}
       <div className="w-full h-2">
-        <input type="range" min={0} max={100} className='w-full slider'
-          value={duration ? (audioRef?.current?.currentTime || 0 / duration) * 100 : 0}
-          onChange={handleSeekChange}
-          onMouseDown={() => setIsSeeking(true)}
-          onMouseUp={handleSeekEnd}
-          onTouchStart={() => setIsSeeking(true)}
-          onTouchEnd={handleSeekEnd}
-          style={{
-            background: `linear-gradient(to right, #9333ea ${duration ? (audioRef?.current?.currentTime || 0 / duration) * 100 : 0}%, #374151 ${duration ? (audioRef?.current?.currentTime || 0 / duration) * 100 : 0}%)`,
-          }}
-        />
+        {
+            (() => {
+            const pct = localDuration && localDuration > 0 ? (currentTime / localDuration) * 100 : 0;
+            const clampedPct = Math.max(0, Math.min(100, pct));
+            const bufPct = localDuration && localDuration > 0 ? (bufferedEnd / localDuration) * 100 : 0;
+            const clampedBufPct = Math.max(0, Math.min(100, bufPct));
+            // Gradient: played color up to clampedPct, buffered color from clampedPct to clampedBufPct, remainder gray
+            const gradient = `linear-gradient(to right, #9333ea 0% ${clampedPct}%, rgba(147,51,234,0.35) ${clampedPct}% ${clampedBufPct}%, #374151 ${clampedBufPct}% 100%)`;
+            return (
+              <input
+                type="range"
+                min={0}
+                max={100}
+                className='w-full slider'
+                value={clampedPct}
+                onChange={handleSeekChange}
+                onMouseDown={() => { setIsSeeking(true); isSeekingRef.current = true; }}
+                onMouseUp={() => { setIsSeeking(false); isSeekingRef.current = false; handleSeekEnd(); }}
+                onTouchStart={() => { setIsSeeking(true); isSeekingRef.current = true; }}
+                onTouchEnd={() => { setIsSeeking(false); isSeekingRef.current = false; handleSeekEnd(); }}
+                style={{
+                  background: gradient,
+                }}
+              />
+            )
+          })()
+        }
       </div>
 
       {/* Current Progress Text */}
       <div className="flex justify-between w-full text-gray-400 text-sm mt-4">
-        <span>{formatTime(audioRef?.current?.currentTime || 0)}</span>
-        <span>{formatTime(duration)}</span>
+        <span>{formatTime((currentTime || 0) * 1000)}</span>
+        <span>{formatTime((localDuration || 0) * 1000)}</span>
+      </div>
+      {/* Buffer status text (optional) */}
+      <div className="w-full text-xs text-gray-500 mt-1">
+        Buffered: {Math.floor(bufferedEnd)}s
       </div>
     </div>
   );

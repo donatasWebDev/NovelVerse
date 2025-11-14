@@ -13,7 +13,7 @@ import {
 // import { useNavigate } from "react-router-dom";
 import { ChDropDown } from "../components/chDropDown"
 import Player, { PlayerCompRef } from "../components/Player"
-import { useSocket } from "../uttils/socketConnection";
+import { useSocketContext  } from "../uttils/socketContext";
 import { useAuth } from "../uttils/AuthContex";
 import { useLibrary } from "../uttils/LibraryContext";
 // import { useLibrary } from "../uttils/LibraryContext";
@@ -32,7 +32,8 @@ export const AudioPlayerPage = ({
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showDropDown, setShowDropDown] = useState(false);
-  const speeds = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
+  const [audioLoaded, setAudioLoaded] = useState<boolean>(false);
+  const speeds = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5];
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const playerRef = useRef<PlayerCompRef>(null); // Ref to access Player component
   const [loading, setLoading] = useState<boolean>(true);
@@ -41,7 +42,9 @@ export const AudioPlayerPage = ({
   const {streamKey} = useLibrary()
   const [lastChunkSentIndex, setLastChunkSentIndex] = useState(-1);
 
-  const { connect, isConnected, socket, sendMessage, messages, audio: socketAudioChunks } = useSocket()
+  const { connect, isConnected, sendMessage, messages, audio: socketAudioChunks } = useSocketContext()
+
+
 
 
   useEffect(() => {
@@ -49,6 +52,9 @@ export const AudioPlayerPage = ({
       connect(
         streamKey, user?.id
       );
+    }
+    if (isConnected && streamKey && user) {
+      handleSendMessagePlay();
     }
   }, [streamKey, isConnected, user])
 
@@ -72,9 +78,19 @@ export const AudioPlayerPage = ({
   useEffect(() => {
     if (messages && messages.length > 0 && !chapterInfo) {
       let info = messages.find((m) => m.type === "audio-info")
-      setChapterInfo(info || null)
+      if (info) {
+        setChapterInfo(info)
+      }
+
     }
-  }, [messages])
+  }, [messages ])
+
+  useEffect(() => {
+      if (socketAudioChunks.length >0 && !audioLoaded) {
+        setIsPlaying(true);
+        setAudioLoaded(true);
+      }
+  }, [socketAudioChunks])
 
 
   const handlePlayerRequestsMoreData = useCallback(() => {
@@ -218,8 +234,6 @@ export const AudioPlayerPage = ({
           </p>
         </div>
       )}
-
-      <button onClick={handleSendMessagePlay} className='px-4 py-2 border-2 my-4 border-white text-white font-bold'>Send Play</button>
       {/* Audio Controls */}
       <div className="">
         {/* Progress Bar */}
@@ -228,7 +242,7 @@ export const AudioPlayerPage = ({
           isPlaying={isPlaying}
           setterIsPlaying={handlePlayPause}
           playSpeed={playbackSpeed}
-          loading={loading}
+          loading={audioLoaded}
           onRequestMoreData={handlePlayerRequestsMoreData}
           duration={chapterInfo?.message.duration || 0}
         />

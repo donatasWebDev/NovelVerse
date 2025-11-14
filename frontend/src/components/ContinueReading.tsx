@@ -28,7 +28,7 @@ export const ContinueReading = ({ book }: props) => {
 
 
 
-  return <div className="bg-gray-800 rounded-lg overflow-hidden shadow-lg mb-8 border border-gray-700">
+  return <div className="bg-gray-800 rounded-lg overflow-hidden shadow-lg mb-8 border border-gray-700 cursor-pointer" onClick={() => navigate(playerUrl)}>
     <div className="p-4">
       <h2 className="text-lg font-semibold text-gray-100 mb-4">
         Continue Reading
@@ -52,12 +52,6 @@ export const ContinueReading = ({ book }: props) => {
               {isPlaying ? (<Pause className="w-4 h-4" strokeWidth={0.1} fill="#FFF" />) : (<Play className="w-4 h-4" />)}
             </button>
           </div>
-          <Player
-            isPlaying={isPlaying}
-            setterIsPlaying={handlePlayPause}
-            playSpeed={book.speed}
-            loading={false}
-          />
         </div>
       </div>
     </div>

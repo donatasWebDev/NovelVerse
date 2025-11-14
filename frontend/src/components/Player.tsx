@@ -290,12 +290,13 @@ const Player = forwardRef<PlayerCompRef, Props>(({ isPlaying, duration, setterIs
   return (
     <div className="flex flex-col items-center rounded-lg shadow-lg h-auto w-full">
 
-      <audio ref={audioRef} controls>
+      {/* add controls to make it visible */}
+      <audio ref={audioRef} >
       </audio>
 
       {/* Loadking circle */}
       {
-        isSourceOpen ? (
+        !loading ? (
           <div className="flex justify-center items-center w-10 h-10 rounded-full  bg-gradient-to-t from-purple-600 via-30% to-gray-900 animate-spin"></div>
         ) : (
           <></>

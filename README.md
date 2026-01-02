@@ -1,157 +1,117 @@
-# NovelVerse
+# NovelVerse: Real-Time Full-Stack Audiobook Streaming Application
 
-> A small platform for scraping novels and streaming generated audio to clients via WebSockets. This repository contains a TypeScript backend, a React + Vite frontend, and a Python service for scraping and text-to-speech/socket logic.
+*An In-Depth Case Study*
 
-## Repository layout
+This case study explores **NovelVerse**, a personal full-stack web application that scrapes web novels, generates high-quality audiobooks using text-to-speech (TTS), and streams them in real-time. Designed as a portfolio project, it highlights expertise in hybrid language architecture, real-time systems, web scraping, audio processing, and secure user management.
 
-- `backend/` - TypeScript/Node backend (includes APIs and Prisma schema).
-- `frontend/` - React + Vite TypeScript app (UI and player components).
-- `py_server/` - Python services: scraping, websocket audio server, and supporting scripts. Includes Dockerfiles for various Python components.
+## Project Overview
 
-## Quick features
+NovelVerse lets users discover web novels, build private libraries, track reading progress, and listen to chapters as natural-sounding audio generated on-demand. Content is scraped in real-time, converted via a neural TTS engine, and streamed over WebSockets for low-latency playback—no pre-generated files or long waits required.
 
-- WebSocket audio streaming server (Python) that accepts a user key, scrapes novel content, converts it to audio, and streams MP3 chunks to clients.
-- Frontend React app for browsing and playing audiobooks.
-- Backend TypeScript API (with Prisma schema) that provides authentication and library endpoints.
+**Key goals**
 
-## Prerequisites
+- Instant scraping and streaming for seamless playback
+- GPU acceleration for efficient, high-quality voice synthesis
+- Secure authentication and personalized progress tracking
 
-- Node.js (v16+ recommended)
-- npm or yarn
-- Python 3.9+ (3.10+ recommended)
-- pip
-- Docker (optional, for containerized runs)
+The app runs locallw with Docker and is being prepared for cloud deployment (e.g., RunPod for scalable GPU support).
 
-## Running the services (local development)
+## Technology Tree
 
-Below are minimal steps to run each part locally. Adjust ports and environment variables as needed.
+```
+Root Application
+├── Languages & Runtime
+│   ├── TypeScript (frontend & backend)
+│   └── Python 3.10+ (real-time processing)
+├── Containerization
+│   └── Docker (frontend, backend, Python service)
+└── Configuration
+    └── .env files (DATABASE_URL, VITE_WS_URL, ports)
 
-### Backend (Node / TypeScript)
+Frontend Layer
+├── Framework: React + Vite
+├── State & Routing: React Context + React Router
+├── Real-Time: Native WebSocket client (useSocket hook)
+└── Playback: Web Audio API (Player component, base64 MP3 decoding)
 
-1. Open a terminal and change to the `backend/` directory:
+Backend Layer
+├── Server: Node.js + Express (TypeScript)
+├── Authentication: JWT + bcrypt
+├── ORM: Prisma (MongoDB)
+└── Database: MongoDB (users, books, favorites, progress)
 
-```powershell
-cd backend
+Python Service Layer
+├── Runtime: asyncio + threading
+├── WebSocket Server: websockets library
+├── Scraping: requests + BeautifulSoup
+├── TTS Engine: Kokoro (neural, GPU via torch.cuda)
+├── Audio Processing: numpy (buffering) + pydub (MP3 export)
+└── Concurrency: task_queue (multi-worker threads, per-socket queues)
+
+Cross-Cutting
+├── Protocols: HTTP (API) + WebSocket (streaming)
+└── Performance: GPU auto-detection + adaptive buffering
 ```
 
-2. Install dependencies:
+## System Architecture
 
-```powershell
-npm install
-```
+A loosely coupled, microservices-style design:
 
-3. (If using Prisma) generate client and run migrations as needed:
+- **Frontend ↔ Backend**: HTTP REST for authentication and library data
+- **Frontend ↔ Python Server**: Direct WebSocket for real-time audio streaming
+- **Python Server ↔ Backend**: HTTP verification endpoint for secure socket handshakes
 
-```powershell
-npx prisma generate
-# If you have migrations to apply:
-npx prisma migrate dev
-```
+This keeps the UI responsive while offloading heavy computation to Python.
 
-4. Start the backend:
+## Key Workflows
 
-```powershell
-npm run dev
-```
+### Database & Library Workflow
 
-Check `backend/package.json` for the correct start script if different.
+1. User registers/logs in → `POST /api/user/*` → Prisma creates/finds record → JWT issued
+2. Fetch library → `GET /api/lib/books` → Prisma query with relations → Personalized book list returned
+3. Save progress → Frontend POST → Prisma upserts `LatestRead` model
 
-### Frontend (React + Vite)
+### Real-Time Streaming Workflow
 
-1. Open a terminal and change to the `frontend/` directory:
+1. Player page loads → Frontend opens WebSocket and sends streamKey + userId
+2. Python server verifies via `POST /api/lib/verify`
+3. User requests chapter → Frontend sends `"play <url> <chapter>"`
+4. Python scrapes content → Queues TTS task → Workers generate audio (Kokoro on GPU/CPU)
+5. Audio buffered (20s initial warmup) → Converted to MP3 chunks → Base64-encoded → Sent over WebSocket
+6. Frontend decodes and plays; supports `"to <seconds>"` (seek) and `"stop"`
 
-```powershell
-cd frontend
-```
+### TTS Generation Workflow
 
-2. Install dependencies and start the dev server:
+1. Scrape and clean chapter text
+2. Kokoro pipeline splits text and synthesizes audio tensors
+3. Convert tensors → numpy arrays → pydub MP3 export (requires ffmpeg)
+4. Chunk, encode, and stream with metadata (duration, WPM)
 
-```powershell
-npm install
-npm run dev
-```
+GPU acceleration significantly reduces inference time compared to CPU fallback.
 
-The Vite dev server typically serves at `http://localhost:5173` (check the terminal output).
+## End-to-End User Flow
 
-### Python socket & scraping server (`py_server`)
+1. **Login** → JWT stored in context
+2. **Browse library** → API fetch → Navigate to player page (`/play/:id/:chapter`)
+3. **Connect WebSocket** → Authenticated handshake
+4. **Request chapter** → Scraping + TTS begins
+5. **Stream & play** → Real-time audio with smooth buffering
+6. **Finish session** → Progress automatically synced to database
 
-This repo contains a Python WebSocket server (`py_socket.py`) that listens (by default) on port `12345` and streams MP3 audio chunks after scraping and TTS processing.
+## Challenges & Solutions
 
-1. Create and activate a virtual environment (optional but recommended):
+| Challenge                 | Solution                                   |
+| ------------------------- | ------------------------------------------ |
+| TTS latency on CPU        | GPU auto-detection + chunked streaming     |
+| Scraping fragility        | Modular parsers (easy updates)             |
+| Concurrent streams        | Threaded workers + per-connection queues   |
+| Browser autoplay policies | User-initiated playback via interactive UI |
 
-```powershell
-cd py_server
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-```
+## Future Enhancements
 
-2. Install Python requirements:
+- Dynamic worker scaling for more concurrent users
+- Additional voice options and speed controls
+- Full cloud deployment with monitoring
+- Comprehensive testing (unit, integration, E2E)
 
-```powershell
-pip install -r requirements.txt
-```
-
-3. Start the socket server (example):
-
-```powershell
-python py_socket.py
-```
-
-This will start the WebSocket server that clients can connect to. The default port in the file is `12345` (edit if you want a different port).
-
-Notes:
-
-- The socket server expects an initial text message containing the user's `streamKey` and `userId` (comma-separated) as in the existing code.
-- The Python code posts to a local backend verification URL (in the file it's set to `http://localhost:4000/api/lib/verify`) — ensure your backend verification endpoint is running and matches that URL or change the constant in `py_socket.py`.
-
-## Docker (optional)
-
-There are Dockerfiles present for Python services and the project contains a `backend/Dockerfile`. Typical steps to build and run a service:
-
-```powershell
-# Example: build backend image
-cd backend
-docker build -t novelverse-backend .
-
-# Run the container (example)
-docker run -p 4000:4000 --env-file ../.env novelverse-backend
-```
-
-Adjust ports, env files, and service names as needed. There are additional Dockerfile-* files under `py_server/` for various Python components.
-
-## Configuration / Environment variables
-
-You may need to supply environment variables for the backend and python components. Common variables to check or add to an `.env` file:
-
-- `DATABASE_URL` — for Prisma/DB connection (backend)
-- `PORT` — backend or frontend ports if configured
-- Any API keys used for TTS or scraping in `py_server/` (if applicable)
-
-Search each component for `process.env` (Node) or direct references to secrets in Python files to see required variables.
-
-## How clients interact with the socket server
-
-- Connect via WebSocket to the server (default `ws://<host>:12345`).
-- Send an initial message with `streamKey,userId` (comma separated).
-- Use commands like `play <book_url> <chapter_number>` from the client to trigger scraping and audio streaming.
-
-Example (pseudo-client):
-
-1. connect
-2. send: `myStreamKey,12345`
-3. send: `play https://somesite/book-slug 1`
-
-The server will verify the key with the backend and then scrape the requested chapter, generate audio and stream it back in base64-encoded MP3 messages.
-
-## Troubleshooting
-
-- If the socket server posts to the verification URL and errors, confirm the backend is running on the expected port and endpoint (default in code: `http://localhost:4000/api/lib/verify`).
-- If imports fail in Python (e.g., `pydub`), make sure `ffmpeg` is installed or available to `pydub` (ffmpeg is required to export MP3).
-- If the frontend can't reach the backend due to CORS, check backend CORS settings.
-
-## Contributing
-
-1. Open an issue describing the change or bug.
-2. Create a branch: `git checkout -b feat/your-change`.
-3. Add tests where appropriate and ensure linting passes.
-4. Submit a PR with a clear description of the change.
+NovelVerse is a solid demonstration of modern full-stack development, blending web technologies with real-time AI processing. It showcases clean architecture, performance optimization, and cross-language integration—making it an excellent portfolio piece for highlighting technical depth.

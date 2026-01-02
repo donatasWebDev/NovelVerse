@@ -127,4 +127,3 @@ GPU acceleration significantly reduces inference time compared to CPU fallback.
 - Full cloud deployment with monitoring
 - Comprehensive testing (unit, integration, E2E)
 
-NovelVerse is a solid demonstration of modern full-stack development, blending web technologies with real-time AI processing. It showcases clean architecture, performance optimization, and cross-language integration—making it an excellent portfolio piece for highlighting technical depth.

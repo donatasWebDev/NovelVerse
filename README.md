@@ -4,6 +4,19 @@
 
 This case study explores **NovelVerse**, a personal full-stack web application that scrapes web novels, generates high-quality audiobooks using text-to-speech (TTS), and streams them in real-time. Designed as a portfolio project, it highlights expertise in hybrid language architecture, real-time systems, web scraping, audio processing, and secure user management.
 
+### NovelVerse — Real-Time Web Novel Audiobook Streaming App
+
+[![NovelVerse Demo](https://img.youtube.com/vi/o9cOABC1nu0/maxresdefault.jpg)](https://www.youtube.com/watch?v=o9cOABC1nu0)
+
+A full-stack application that turns web novels into audiobooks on demand. It scrapes chapters in real-time, generates natural-sounding speech using a GPU-accelerated neural TTS engine, and streams audio seamlessly over WebSockets.
+
+**Key Features**
+- On-demand scraping and real-time audio generation
+- Low-latency streaming with adaptive buffering
+- Secure JWT authentication and private user libraries
+- Progress tracking across sessions
+- Hybrid architecture combining React, Node.js, and Python services
+
 ## Project Overview
 
 NovelVerse lets users discover web novels, build private libraries, track reading progress, and listen to chapters as natural-sounding audio generated on-demand. Content is scraped in real-time, converted via a neural TTS engine, and streamed over WebSockets for low-latency playback—no pre-generated files or long waits required.

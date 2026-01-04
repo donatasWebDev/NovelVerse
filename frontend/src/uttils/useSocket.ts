@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 
-const DEFAULT_URL = "ws://26.8.146.141:12345";
+const DEFAULT_URL = import.meta.env.VITE_WS_URL || "Test_env_value_socket";
+
 
 export const useSocket = (url: string = DEFAULT_URL) => {
     const socketRef = useRef<WebSocket | null>(null);
@@ -50,7 +51,9 @@ export const useSocket = (url: string = DEFAULT_URL) => {
                     }
 
                     setAudio((prev) => [...prev, buffer.buffer]);
+                    console.log("Received audio chunk", buffer.buffer);
                 } else {
+                    console.log("Received message:", obj);
                     setMessages((prev) => [...prev, obj]);
                 }
             } catch (e) {
@@ -95,5 +98,5 @@ export const useSocket = (url: string = DEFAULT_URL) => {
         }
     }, []);
 
-    return { connect, disconnect, sendMessage, messages, audio, isConnected, error, data };
+    return { connect, disconnect, sendMessage, messages, audio, isConnected, socketRef, error, data };
 };

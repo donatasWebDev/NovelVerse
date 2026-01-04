@@ -1,50 +1,58 @@
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-import undetected_chromedriver as uc
+from seleniumbase import Driver
 import time
+import logging
 from bs4 import BeautifulSoup
-from fake_useragent import UserAgent
+import os
 
-uc.TARGET_VERSION = 134
-# Set up Selenium with headless mode (no browser window)
-# chrome_options = Options()
-# chrome_options.add_argument("--headless")  # Running in headless mode (optional)
-# chrome_options.add_argument("--disable-gpu")  # For Windows OS
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+ENV = os.getenv("ENVIRONMENT", "dev").lower()
 
-
-
-
-# Set up the WebDriver (adjust path to your ChromeDriver)
-# driver = webdriver.Chrome(options=chrome_options, executable_path='./chromedriver.exe')
-
-  
 def load_page(url):
-    ua = UserAgent()
-    options = uc.ChromeOptions()
+    try:
+        # SeleniumBase UC mode - strongest bypass for Cloudflare 2025
+        driver = Driver(
+            uc=True,  # Undetected mode - key for bypass
+            headless=(ENV == "prod"),  # Visible in dev, headless in prod
+            incognito=False,
+            agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",  # Real UA
+            locale_code="en",
+            do_not_track=False,
+        )
 
-    options.add_argument(f"--user-agent={ua.random}")
-    options.add_argument("--headless=new")  # Optional: Run headless
-    options.add_argument("--no-sandbox")
-    options.add_argument("--disable-blink-features=AutomationControlled")  # Helps avoid detection
-    
-    driver = uc.Chrome(options=options)
+        if ENV == "dev":
+            driver.maximize_window()
 
-    # service = Service(executable_path = "./chromedriver.exe")
-    # driver = webdriver.Chrome(service=service, options=chrome_options)
-    
-    driver.get(url)
+        driver.get(url)
+        logging.info(f"Loading {url} - waiting for Cloudflare bypass...")
 
-    # Wait for the page to load completely, adjust time if needed
-    time.sleep(1)
-    # Now, you can either:
-    # - Capture the page's HTML after it has loaded
-    html_content = driver.page_source
-    driver.quit()
+        # Give time for uc to solve challenge (10-30s typical)
+        time.sleep(15)  # Adjust up if needed - watch in dev visible mode
 
-    # Parse the HTML content using BeautifulSoup
-    soup = BeautifulSoup(html_content, 'html.parser')
-    if soup:
+        # Extra check/reload if still challenge
+        if "Just a moment" in driver.page_source or "cloudflare" in driver.current_url.lower():
+            logging.warning("Challenge detected - waiting longer...")
+            time.sleep(15)
+            driver.get(url)  # Reload sometimes helps
+
+        html_content = driver.page_source
+
+        soup = BeautifulSoup(html_content, 'html.parser')
+
+        if "Just a moment" in soup.text:
+            logging.error("Failed to bypass Cloudflare challenge")
+            return None
+
+        logging.info("Bypassed Cloudflare - chapter loaded!")
         return soup
+
+    except Exception as e:
+        logging.error(f"Error: {e}")
+        return None
+
+    finally:
+        if ENV == "prod":
+            driver.quit()
+        else:
+            logging.info("DEV: Browser open for inspection/video")
+            # Keep open in dev

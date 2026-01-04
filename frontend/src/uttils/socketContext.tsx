@@ -16,6 +16,7 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
         const shouldConnect = location.pathname.includes("/play/");
 
         if (!shouldConnect) {
+            console.log("Disconnecting socket due to route change");
             socket.disconnect();
         }
     }, [location.pathname]);

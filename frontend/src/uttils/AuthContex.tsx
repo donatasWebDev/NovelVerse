@@ -4,8 +4,8 @@ import axios from "axios";
 import Cookies from "js-cookie";
 import {UserType} from "../types"
 
-const url = "http://localhost:4000/api";
-// const url = "https://chat-app-backend-shool-project.glitch.me";
+const url = import.meta.env.VITE_API_BASE_URL || "Test_env_value";
+console.log("API Base URL:", url);
 
 
 interface AuthContextType {

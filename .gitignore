@@ -15,6 +15,7 @@ backend/.env
 
 # Python
 py_server/__pycache__/
+py_server/*/__pycache__/
 py_server/*.pyc
 py_server/*.pyo
 py_server/venv/
@@ -24,6 +25,9 @@ py_server/*.mp3
 py_server/*.wav
 py_server/ffmpeg.exe
 py_server/ffmpeg
+py_server/scraping/*.json
+py_server/scraping/*.jsonl
+py_server/scraping/*.txt
 
 # Docker
 *.tar  # Saved Docker images

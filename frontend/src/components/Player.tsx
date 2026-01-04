@@ -208,6 +208,7 @@ const Player = forwardRef<PlayerCompRef, Props>(({ isPlaying, duration, setterIs
 
   useEffect(() => {
     if (audioRef.current) {
+      console.log("playback speed set to", playSpeed)
       audioRef.current.playbackRate = playSpeed;
     }
   }, [playSpeed]);

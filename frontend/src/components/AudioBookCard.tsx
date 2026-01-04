@@ -28,11 +28,12 @@ export const AudioBookCard = ({
         </span>
       </div>
       <div className="flex items-center justify-between text-sm text-gray-400">
-        <div className="flex items-center gap-2">
-          <span className={`bg-purple-600 text-white text-xs px-2 py-0.5 rounded ${!isComplete ? "hidden" : ""}`}>
-            Completed
-          </span>
+        <div className="w-full flex items-center gap-2 justify-between">
           <span>Ch. {numberOfChapters}</span>
+          {
+            isComplete ? <span className="px-2 py-1 bg-green-600 text-white rounded-full text-xs">Completed</span> 
+            : <span className="px-2 py-1 bg-yellow-600 text-white rounded-full text-xs">Ongoing</span>
+          }
         </div>
       </div>
     </div>

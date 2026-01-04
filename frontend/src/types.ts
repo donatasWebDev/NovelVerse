@@ -11,11 +11,8 @@ export interface Book {
 }
 export interface Chapter {
     bookId: string;
-    title: string;
-    chapterURL: string;
-    nr: string;
+    nr: number;
     text?: string | null;
-    audioURL?: string | null;
 
 }
 export interface UserType {
@@ -28,8 +25,6 @@ export interface UserType {
   export interface BookCurrent extends Book{
     progress: number;
     currentChapter: number;
-    currentChapterTitle: string;
     speed: number;
     isPlaying: boolean;
-    audioURL?: string | null;
   }

@@ -7,8 +7,7 @@ import { list } from "postcss";
 import { useAuth } from "./AuthContex";
 import { promises } from "dns";
 
-const url = "http://localhost:4000/api/lib";
-// const url = "https://chat-app-backend-shool-project.glitch.me";
+const url = import.meta.env.VITE_API_BASE_URL+"/lib" || "Test_env_value_lib";
 
 interface LibraryType {
   books: Book[]
@@ -20,10 +19,11 @@ interface LibraryContextType {
   currentBook: BookCurrent | null;
   streamKey: string | null;
   fetchLibrary: (page: number, q: string) => void;
+  getBookById: (id: string) => Promise<Book | undefined>;
   handleSetCurrentBook: (book: BookCurrent) => void;
-  getBookChapters: (book: Book, currect_ch: String) => void
+  initializeAudioBook: (book: Book, currect_ch: String) => void
   getCurrentBook: () => BookCurrent | null;
-  getChpaterAudioCurrent: (book: BookCurrent, chapterURl: string) => Promise<string> | null,
+  getChapterAudioCurrent: (book: BookCurrent, chapterURl: string) => Promise<string> | null,
   getStreamKey: () => Promise<string> | null,
   verifyStreamKey: (streamKey: string, id: string) => Promise<any> | null,
 }
@@ -109,6 +109,23 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }
 
+  const getBookById = async (id: string): Promise<Book | undefined> => {
+    try {
+      if (!id) {
+        return undefined;
+      }
+      console.log("fetching book by id", `${url}/get/book/${id}`)
+      const res: any = await axios.get(`${url}/get/book/${id}`);
+      console.log("getBookById", res.data);
+      if (res) {
+      return res.data as Book;
+      }
+      return undefined;
+    } catch (error) {
+      console.error("Error fetching book by ID:", error);
+    }
+  }
+
   const handleSetCurrentBook = (book: BookCurrent) => {
     Cookies.set("currentBook", JSON.stringify(book));
     localStorage.setItem("currentBook", JSON.stringify(book));
@@ -130,49 +147,22 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return null;
   };
 
-  const getBookChapters = async (book: Book, current_ch: String) => {
-    console.log("old book not found")
+  const initializeAudioBook = async (book: Book, current_ch: String) => {
     try {
-      const bookUrl = book.bookURL;
-      const id = book.id
-      console.log("bookdid", id)
-      const oldBook = library?.books.find((book) => book.id === id)
-      if (oldBook?.chList && oldBook?.chList.length > 0) {
-        const newCurrentBook: BookCurrent = {
-          ...oldBook,
-          progress: 0,
-          currentChapter: Number(current_ch),
-          currentChapterTitle: oldBook.chList[Number(current_ch)].title,
-          isPlaying: false,
-          speed: 1,
-        }
-        return { list: oldBook.chList, book: newCurrentBook };
+      const newCurrentBook: BookCurrent = {
+        ...book,
+        progress: 0,
+        currentChapter: Number(current_ch),
+        isPlaying: false,
+        speed: 1
       }
-
-      if (!bookUrl || !id) return;
-      console.log(`${url}/get/ch/${id}`, { bookURL: bookUrl, nr: current_ch })
-      const response = await axios.put(`${url}/put/ch/${id}`, { bookURL: bookUrl, nr: current_ch });
-      if (response.data.chapters) {
-        if (oldBook?.chList) {
-          const updatedBook = { ...oldBook, chList: response.data.chapters }
-          const newCurrentBook: BookCurrent = {
-            ...updatedBook,
-            progress: 10,
-            currentChapter: Number(current_ch),
-            currentChapterTitle: response.data.chapters[Number(current_ch)].title,
-            isPlaying: false,
-            speed: 1
-          }
-          const updatedLibrary = {
-            ...library,
-            books: (library?.books ?? []).map((b) => (b.id === updatedBook.id ? updatedBook : b)),
-          };
-          setLibrary(updatedLibrary)
-          handleSetCurrentBook(newCurrentBook)
-          return response.data.chapters;
-        }
-
-      }
+      const updatedLibrary = {
+        ...library,
+        books: (library?.books ?? []).map((b) => (b.id === book.id ? book : b)),
+      };
+      setLibrary(updatedLibrary)
+      handleSetCurrentBook(newCurrentBook)
+      return newCurrentBook;
     }
     catch (err) {
       console.log(err);
@@ -181,10 +171,10 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
 
 
-  const getChpaterAudioCurrent = async (book: BookCurrent, chapterURl: string) => {
+  const getChapterAudioCurrent = async (book: BookCurrent, chapterURl: string) => {
     try {
       if (!book) return undefined
-      if (!book.chList || book.chList.length < 0 || book.audioURL) return undefined
+      if (!book.chList || book.chList.length < 0) return undefined
       const exists = book?.chList?.some(ch => 'chapterURL' in ch) ?? false;
       if (!exists) return undefined
 
@@ -203,7 +193,6 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         if (res.data.audio) {
           const newCurrentBook: BookCurrent = {
             ...book,
-            audioURL: res.data.audio.text
           }
           handleSetCurrentBook(newCurrentBook)
           console.log("axios got chpter audio")
@@ -264,10 +253,11 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       streamKey,
       currentBook,
       fetchLibrary,
+      getBookById,
       handleSetCurrentBook,
-      getBookChapters,
+      initializeAudioBook,
       getCurrentBook,
-      getChpaterAudioCurrent,
+      getChapterAudioCurrent,
       getStreamKey,
       verifyStreamKey
     }),

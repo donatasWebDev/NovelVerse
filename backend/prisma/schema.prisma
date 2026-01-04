@@ -20,15 +20,15 @@ model Book {
   author           String
   bookURL          String          @unique
   categoryList     String[]
-  chList           BookChList[]
   coverImg         String
   isComplete       Boolean
-  numberOfChapters String
+  numberOfChapters Int
   title            String          @unique
   userFavorites    FavoriteBooks[] @relation("favoriteBooks")
   categorysIds     String[]        @db.ObjectId
   categorys        Category[]      @relation(fields: [categorysIds], references: [id])
   LatestRead       LatestRead[]    @relation("latestRead")
+  lastUpdated      DateTime?
 }
 
 model User {

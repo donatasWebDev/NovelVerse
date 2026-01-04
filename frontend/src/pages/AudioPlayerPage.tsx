@@ -33,7 +33,7 @@ export const AudioPlayerPage = ({
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   const [showDropDown, setShowDropDown] = useState(false);
   const [audioLoaded, setAudioLoaded] = useState<boolean>(false);
-  const speeds = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5];
+  const speeds = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const playerRef = useRef<PlayerCompRef>(null); // Ref to access Player component
   const [loading, setLoading] = useState<boolean>(true);
@@ -42,31 +42,42 @@ export const AudioPlayerPage = ({
   const {streamKey} = useLibrary()
   const [lastChunkSentIndex, setLastChunkSentIndex] = useState(-1);
 
-  const { connect, isConnected, sendMessage, messages, audio: socketAudioChunks } = useSocketContext()
+  const { connect, isConnected, sendMessage, messages, socketRef, audio: socketAudioChunks } = useSocketContext()
 
 
 
 
-  useEffect(() => {
-    if (!isConnected && streamKey && user) {
-      connect(
-        streamKey, user?.id
-      );
+useEffect(() => {
+  if (!isConnected && streamKey && user) {
+    connect(streamKey, user.id);
+  }
+
+  if (isConnected && streamKey && user) {
+    handleSendMessagePlay();
+  }
+
+  // KEEP ALIVE PING EVERY 5s
+  const pingInterval = setInterval(() => {
+    if (isConnected) {
+      socketRef.current?.send(JSON.stringify({ type: "ping" }));
     }
-    if (isConnected && streamKey && user) {
-      handleSendMessagePlay();
-    }
-  }, [streamKey, isConnected, user])
+  }, 5000);
+
+  return () => clearInterval(pingInterval);
+}, [streamKey, isConnected, user]);
 
   useEffect(() => {
     if (!book && !chapter) {
       // navigate("/")
       return
     }
+    console.log("AudioPlayerPage loaded with book:", book, "chapter:", chapter)
     setPlaybackSpeed(book.speed)
 
-    const currentChapter = book.chList[chapter - 1]
-    console.log("page test", book, currentChapter.chapterURL, (book.audioURL && book.audioURL !== ""))
+    const currentChapter = {
+      ...book,
+      chapterURL: `${book.bookURL.split(".html")[0]}_${chapter}.html`,
+    }
     if (!currentChapter.chapterURL || currentChapter.chapterURL === "") {
       setLoading(false);
       return
@@ -203,7 +214,7 @@ export const AudioPlayerPage = ({
           <ChevronDown className={`${showDropDown ? "rotate-180" : ""} transition-transform w-6 h-6`} />
           <span>Chapters</span>
           <div className={`${showDropDown ? "" : "hidden"}`}>
-            <ChDropDown chList={book.chList} currentChapterNumber={chapter} />
+            <ChDropDown maxCh={book.numberOfChapters} currentChapterNumber={chapter} />
           </div>
         </button>
         <button
@@ -223,8 +234,8 @@ export const AudioPlayerPage = ({
           />
         </div>
         <h2 className="text-xl font-bold text-gray-100 mb-1">{book.title}</h2>
+        <span className="text-3xl my-2 font-bold text-white mb-1">Chapter {chapter}</span>
         <p className="text-sm text-gray-400 mb-2">{book.author}</p>
-        <p className="text-sm text-purple-500">{book.chList[chapter - 1].title}</p>
       </div>
       {/* Text Display (Conditional) */}
       {showText && (

@@ -3,7 +3,7 @@ import websockets
 import signal
 import os
 import numpy as np
-import logging
+
 import threading
 import uuid
 import json
@@ -14,12 +14,12 @@ from pydub import AudioSegment  # Import the AudioSegment class from pydub
 import base64
 
 from tasks.task_queue import TaskQueue, worker_function, Task
-from scarping.scrape import scrape_new_novel, scrape_novel_chapter
+from scarping.scrape import get_chapter_url, scrape_novel_chapter
 
+import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 MAX_WORKERS = 2
-MAX_FAILED_ATTEMPTS = 3
 WPM = 175
 SAMPLE_RATE = 24000
 BLOCK_SIZE = 1024
@@ -31,13 +31,18 @@ packet_size = 2048  # Size of each packet to be sent
 backlog_ratio = 0.1  # Adjust this ratio for smoother streaming
 
 
-URL = "http://localhost:4000/api/lib/verify"
+URL = os.getenv("NODE_BACK_URL", "http://host.docker.internal:4000")+"/api/lib/verify"
 task_queue = TaskQueue( DTYPE, SAMPLE_RATE, BLOCK_SIZE, MAX_WORKERS)
 isReady = False
 
 WPM = 200  # words per minute for speech duration calculation
 MAX_FAILED_ATTEMPTS = 5
 
+
+ffmpeg_path = os.path.join(os.getcwd(), "ffmpeg.exe")  # project root
+AudioSegment.ffmpeg = ffmpeg_path
+AudioSegment.ffprobe = ffmpeg_path.replace("ffmpeg.exe", "ffprobe.exe")
+AudioSegment.converter = ffmpeg_path
 
 # Each socket gets its own buffers and task state
 
@@ -64,115 +69,114 @@ def json_to_bytes(data):
     return json.dumps(data).encode("utf-8") + b"\n"
 
 async def send_message(message, websocket, messageType="info", needResponse=False):
+    payload = {
+        "message": message,
+        "type": messageType
+    }
+
     try:
-        # print(message)  #? echo
-        payload = {
-            "message": message,
-            "type": messageType
-        }
-        
         await websocket.send(json.dumps(payload))
+    except websockets.exceptions.ConnectionClosedOK as e:
+        logging.info(f"Connection closed normally: {e}")
+    except websockets.exceptions.ConnectionClosedError as e:
+        logging.info(f"Connection closed with error: {e}")
     except Exception as e:
         logging.error(f"Error sending message: {e}")
-        connected_clients.remove(websocket)
-        websocket.close()
-
+    finally:
+        # DON'T remove here — do in finally of handle_client
+        pass
 async def send_audio_chunk(websocket):
-    """Encodes and sends an audio chunk as MP3 via WebSocket from the primary buffer."""
     sample_rate = SAMPLE_RATE
     channels = 1
-    sample_width = 2  # 2 bytes for 16-bit PCM
-    # MIN_CHUNK_MS = 200 # Minimum chunk duration in milliseconds OG 200
-    MIN_CHUNK_SIZE = BLOCK_SIZE * 2 
-
+    sample_width = 2
+    MIN_CHUNK_SIZE = BLOCK_SIZE * 2
 
     async with buffer_data_lock:
         if websocket not in buffer_data:
-            logging.info(f"Buffer data for {websocket} not found during send_audio_chunk.")
-            return
+            return 0
 
         buf_info = buffer_data[websocket]
-        
-        # Check if enough data is in the primary buffer to form a minimum chunk
-        if len(buf_info["primary_buffer"]) < MIN_CHUNK_SIZE:
-            logging.info(f"Primary buffer ({len(buf_info['primary_buffer'])} bytes) too small for MIN_CHUNK_SIZE ({MIN_CHUNK_SIZE} bytes). Skipping send.")
-            return
 
+        if len(buf_info["primary_buffer"]) < MIN_CHUNK_SIZE:
+            return 0
+
+        # Calculate send_sz same as before...
         send_sz = max(
             (len(buf_info["primary_buffer"]) * (1 - backlog_ratio)) // packet_size * packet_size,
             packet_size
         )
-        
-        # Ensure we always send at least MIN_CHUNK_SIZE if available
-        logging.info(f"SZ: {send_sz}")
+
         if send_sz < MIN_CHUNK_SIZE:
             if len(buf_info["primary_buffer"]) >= MIN_CHUNK_SIZE:
-                # If primary buffer has enough for MIN_CHUNK_SIZE, adjust send_sz
                 send_sz = (MIN_CHUNK_SIZE // packet_size + (1 if MIN_CHUNK_SIZE % packet_size != 0 else 0)) * packet_size
-                send_sz = min(send_sz, len(buf_info["primary_buffer"])) # Don't take more than available
+                send_sz = min(send_sz, len(buf_info["primary_buffer"]))
             else:
-                logging.info(f"Primary buffer ({len(buf_info['primary_buffer'])} bytes) has less than MIN_CHUNK_SIZE ({MIN_CHUNK_SIZE} bytes) even for calculated send_sz. Cannot send yet.")
-                return # Not enough data for MIN_CHUNK_SIZE, so don't send
+                return 0
 
-        # Ensure send_sz is not 0
         if send_sz == 0:
-            logging.info("Calculated send_sz is 0. No data to send.")
-            return
+            return 0
 
-        # Extract the chunk from the primary buffer
         chunk = buf_info["primary_buffer"][:int(send_sz)]
         buf_info["primary_buffer"] = buf_info["primary_buffer"][int(send_sz):]
 
-    try:
-        # Create AudioSegment directly from raw PCM
+        if len(chunk) == 0:
+            return 0
+
+        if len(chunk) % (sample_width * channels) != 0:
+            padding_needed = (sample_width * channels) - (len(chunk) % (sample_width * channels))
+            chunk += b'\0' * padding_needed
+
+    # OFFLOAD HEAVY MP3 ENCODE TO THREAD — NO BLOCK
+    def encode_mp3():
         audio_segment = AudioSegment(
             chunk,
             frame_rate=sample_rate,
             sample_width=sample_width,
             channels=channels
         )
+        mp3_io = io.BytesIO()
+        audio_segment.export(mp3_io, format="mp3", codec="libmp3lame")
+        return mp3_io.getvalue()
 
-        # Convert AudioSegment to MP3 in memory
-        mp3_bytes_io = io.BytesIO()
-        audio_segment.export(mp3_bytes_io, format="mp3")
+    try:
+        mp3_bytes = await asyncio.to_thread(encode_mp3)
 
-        mp3_bytes = mp3_bytes_io.getvalue()
-
-        # Base64 encode the MP3 data
         base64_mp3 = base64.b64encode(mp3_bytes).decode('utf-8')
         data = {"audio_bytes": base64_mp3}
         await send_message(data, websocket, "audio")
 
-        # Compute playback time of this chunk and return it for asyncio.sleep
-        samples = send_sz // sample_width
-        duration_s = samples / sample_rate
-        return 0.1
+        duration_s = len(chunk) / (sample_rate * channels * sample_width)
+        return duration_s
 
     except Exception as e:
-        logging.info(f"Error converting to MP3 or sending: {e}")
-        # Consider clearing the buffer or signaling an error state
-        with buffer_data_lock:
+        logging.error(f"Chunk encode/send error: {e}")
+        async with buffer_data_lock:
             if websocket in buffer_data:
-                buffer_data[websocket]["primary_buffer"] = bytearray() # Clear buffer on error
+                buffer_data[websocket]["primary_buffer"] = bytearray()
                 buffer_data[websocket]["secondary_buffer"] = bytearray()
-        connected_clients.remove(websocket)
-        websocket.close()
-        return 0 # Return 0 duration on error to prevent long waits
+        try:
+            connected_clients.remove(websocket)
+        except:
+            pass
+        await websocket.close()
+        return 0
     
 async def scrape_novel(url, ch_nr, websocket):
     if url and ch_nr and websocket:
-        title_received, chapters, base_url = scrape_new_novel(url)
-        if ch_nr.isdigit() and len(chapters) > 0 and int(ch_nr) != 0:
-            title_chapter, chapterURL = chapters[int(ch_nr)-1]
-            logging.info(f"Loaded chapter: {title_received} {chapterURL} ")
-            if chapterURL:
-                title,text = scrape_novel_chapter(chapterURL)
-                with socket_data_lock:
-                    prev_data = socket_data.get(websocket, {})  # Get existing data or empty dict
-                    socket_data[websocket] = {**prev_data, "title": title, "text": text, "chapters": chapters, "base_url": base_url}
-                await generate_audio(f"{title}\n\n{text}", websocket)
-                # await send_message(f"Generating chapter", websocket)
+        chapterUrl = get_chapter_url(url, ch_nr)
+        logging.info(f"Loaded chapter: {ch_nr} {chapterUrl} ")
+        if chapterUrl:
+            text = scrape_novel_chapter(chapterUrl)
+            if not text:
+                logging.error("Failed to scrape chapter content.")
+                await send_message(f"Failed to scrape chapter content. Use 'help' for available commands.", websocket, "info", True)
                 return
+            with socket_data_lock:
+                prev_data = socket_data.get(websocket, {})  # Get existing data or empty dict
+                socket_data[websocket] = {**prev_data, "text": text, "base_url": url}
+            await generate_audio(f"{text}", websocket)
+            # await send_message(f"Generating chapter", websocket)
+            return
         else:
             await send_message(f"Invalid chapter number. Use 'help' for available commands.", websocket, "info", True)
             print(ch_nr)
@@ -194,7 +198,7 @@ async def watch_websocket_disconnect(websocket):
                 logging.info(f"WebSocket {websocket} disconnected — canceled Task {t.task_id}")
 
 async def generate_audio(text, websocket):
-    print("generating audio")
+    logging.info("generating audio")
     await send_message("generating audio", websocket)
     if not text:
         logging.warning("No text provided. Skipping audio stream creation.")
@@ -231,7 +235,7 @@ async def generate_audio(text, websocket):
     try:
         while True:
 
-            res = await asyncio.to_thread(task_queue.get_result, websocket, timeout=2)
+            res = await asyncio.to_thread(task_queue.get_result, websocket, timeout=10)
 
             if res is None:
                 should_break_loop = False
@@ -328,7 +332,7 @@ async def check_auth(websocket):
     data = {"userId": user_id, "streamKey": token}
     res = requests.post(URL, data=data)
     if res.status_code == 200:
-        print(res.text)
+        logging.info(res.text)
         asyncio.create_task(watch_websocket_disconnect(websocket))
         return True  
 
@@ -344,10 +348,10 @@ async def add_user(user_id, token, websocket):
         return 
     try:
         dataObj = {"userId": user_id, "streamKey": token, "message": "socket"}
-        print(dataObj)
+        logging.info(dataObj)
         res = requests.post(url=URL, json=dataObj)
         if res.status_code != 200:
-            print(res.status_code, res.text)
+            logging.error(f"Error adding user: {res.status_code}, {res.text}")
             await send_message(f"User verification failed err: {res.text}", websocket, "error")
             await websocket.close()
             return 
@@ -384,59 +388,45 @@ async def stop_task(websocket):
 async def handle_client(websocket):
     client_address = websocket.remote_address
     connected_clients.add(websocket)
-    print(f"New connection! Total users: {len(connected_clients)}")
-    print(f"Accepted connection from {client_address}")
+    logging.info(f"New connection! Total users: {len(connected_clients)}")
+    logging.info(f"Accepted connection from {client_address}")
     await send_message(f"Server accepted connection and is Ready to go \n", websocket)
 
     try:
-        # Get and check user key
         user_data = await websocket.recv()
-        print(f"Received user_data: '{user_data}'")
-        if not user_data:
-            logging.error(f"Invalid key received from {client_address}")
-            await send_message(f"No key found", websocket)
-            return
+        logging.info(f"Received user_data: '{user_data}'")
         user_data = user_data.strip().split(",")
-        print(f"Split user_data: {user_data}")
-        if user_data and len(user_data) > 0:
+        logging.info(f"Split user_data: {user_data}")
+        if user_data and len(user_data) > 1:  # Safe length check
             token = user_data[0]
-            user_id = user_data[1] # This line could cause an IndexError
-            data = None
-            with socket_data_lock:
-                data = socket_data.get(websocket, None)
-            if data:
-                for user in data:
-                    if user and user["user_id"] == user_id:
-                        await send_message(f"User {user_id} already connected", websocket)
-                        return
+            user_id = user_data[1]
             await add_user(user_id, token, websocket)
-            message_handler_task = asyncio.create_task(handle_messages(websocket, client_address))
-
-            # **Keep handle_client running until the connection is closed (e.g., when handle_messages finishes)**
-            try:
-                await message_handler_task
-            except websockets.exceptions.ConnectionClosedOK:
-                logging.info(f"Connection closed normally for {client_address}")
-            except websockets.exceptions.ConnectionClosedError:
-                logging.info(f"Connection closed with error for {client_address}")
-            else:
-                logging.warning(f"Received empty user_data after split from {client_address}")
-                await send_message(f"Empty user data received", websocket)
-                return
-
-
+            await handle_messages(websocket, client_address)
+        else:
+            await send_message(f"Invalid user data", websocket, "error")
+    except websockets.exceptions.ConnectionClosedOK:
+        logging.info(f"Connection closed normally for {client_address}")
+    except websockets.exceptions.ConnectionClosedError:
+        logging.info(f"Connection closed with error for {client_address}")
     except Exception as e:
         logging.error(f"Error in handle_client for {client_address}: {e}")
-        await send_message(f"Server error: {e}", websocket)
+        await send_message(f"Server error: {e}", websocket, "error")
+    finally:
+        # Safe remove + await close
+        try:
+            connected_clients.remove(websocket)
+        except ValueError:
+            pass
         await websocket.close()
+        logging.info(f"Connection cleaned up for {client_address}")
 
 async def handle_messages(websocket, client_address):
     """Handles incoming messages from a single WebSocket client."""
     try:
         async for data in websocket:
-            print( data )
+            logging.info(data)
             data = data.strip()
-            print(f"Received from {client_address}: {data}")
+            logging.info(f"Received from {client_address}: {data}")
             data = data.split(" ")
 
             match data[0]:
@@ -471,18 +461,20 @@ async def handle_messages(websocket, client_address):
 
 
     except Exception as e:
-        print(f"Error with {client_address}: {e}")
+        logging.error(f"Error with {client_address}: {e}")
     finally:
-        connected_clients.remove(websocket)
+        try:
+            connected_clients.remove(websocket)
+        except ValueError:
+            pass  # Already removed — safe
         await stop_task(websocket) # Ensure task is canceled on disconnect
-        print(f"User disconnected. Total users: {len(connected_clients)}")
-
+        logging.info(f"User disconnected. Total users: {len(connected_clients)}")
 
 async def run_server(port):
     host = '0.0.0.0'
     # host = '127.0.0.1'
     port = port
-    print(f"Server listening on {host}:{port}")
+    logging.info(f"Server listening on {host}:{port}")
     task_queue.start(worker_function)
     try:
         async with websockets.serve(handle_client, host, port) as server:

@@ -1,5 +1,5 @@
 import { Response, Request } from 'express'
-import { PrismaClient, User, Book, Prisma, BookChList } from '@prisma/client'
+import { PrismaClient, User, Book, Prisma } from '@prisma/client'
 import mongoose from 'mongoose'
 import axios from 'axios'
 import jwt from 'jsonwebtoken'
@@ -8,99 +8,56 @@ import path from 'path'
 import { format } from 'date-fns'
 import { request } from 'http'
 
-const pyServer = 'http://127.0.0.1:4001'
+const pyServer = process.env.PY_SERVER_URL || "Test_env_value_pyserver";
 
 interface AuthRequest extends Request {
   user?: User
   file?: Express.Multer.File
 }
-interface Chapter extends BookChList {}
 const prisma = new PrismaClient()
 
 export const addBook = async (req: Request, res: Response) => {
   try {
-    console.log(req.body)
+    console.log(req.body);
     const bookData = {
       title: req.body.title,
-      author: req.body.author,
-      bookURL: req.body.bookURL,
-      isComplete: req.body.isComplete,
-      categoryList: req.body.category,
-      numberOfChapters: req.body.numberOfChapters,
-      coverImg: req.body.coverImg,
-      chList: [],
+      author: req.body.author || "Unknown",
+      bookURL: req.body.bookUrl,
+      isComplete: req.body.isComplete || false,
+      categoryList: req.body.category || [],
+      numberOfChapters: req.body.numberOfChapters || 0,
+      coverImg: req.body.coverImg || null,
+      lastUpdated: req.body.lastUpdated || new Date().toISOString(), // Optional: add field if you want
+    };
 
-      v: 0,
+    if (!bookData.bookURL) {
+      res.status(400).json({ message: 'bookURL is required' });
+      return;
     }
 
-    if (!bookData) {
-      res.status(400).json({ message: 'Invalid book data' })
-      return
-    }
+    console.log('Processing book:', bookData.title);
 
-    console.log('good data', bookData)
+    // UPSERT: Insert if new, update if exists (by unique bookURL)
+    const book = await prisma.book.upsert({
+      where: { bookURL: bookData.bookURL },
+      update: {
+        title: bookData.title,
+        author: bookData.author,
+        isComplete: bookData.isComplete,
+        categoryList: bookData.categoryList,
+        numberOfChapters: bookData.numberOfChapters,
+        coverImg: bookData.coverImg,
+        lastUpdated: bookData.lastUpdated, // If you add this field to schema
+      },
+      create: bookData,
+    });
 
-    const newBook = await prisma.book.create({ data: bookData }) // Added await
-
-    res.status(201).json(newBook)
+    res.status(200).json({ message: 'Book added/updated', book });
   } catch (error: any) {
-    console.error('Error adding book:', error)
-    res.status(400).json({ message: error.message })
+    console.error('Error upserting book:', error);
+    res.status(500).json({ message: error.message || 'Server error' });
   }
-}
-
-export const removeDupes = async (req: Request, res: Response) => {
-  try {
-    const duplicates = await findDuplicateBookURLs()
-
-    for (const duplicate of duplicates) {
-      const idsToDelete = duplicate.ids.slice(1) // Keep the first ID
-      for (const id of idsToDelete) {
-        await prisma.book.delete({
-          where: {
-            id: id,
-          },
-        })
-        console.log(`Deleted duplicate book with ID: ${id}`)
-      }
-    }
-
-    console.log('Duplicate books removed.')
-  } catch (error) {
-    console.error('Error removing duplicate books:', error)
-  } finally {
-    await prisma.$disconnect()
-  }
-}
-
-async function findDuplicateBookURLs() {
-  try {
-    const books = await prisma.book.findMany()
-    const bookURLMap = new Map<string, string[]>()
-
-    for (const book of books) {
-      if (!bookURLMap.has(book.bookURL)) {
-        bookURLMap.set(book.bookURL, [book.id])
-      } else {
-        bookURLMap.get(book.bookURL)?.push(book.id)
-      }
-    }
-
-    const duplicateBookURLs: { bookURL: string; ids: string[] }[] = []
-    bookURLMap.forEach((ids, bookURL) => {
-      if (ids.length > 1) {
-        duplicateBookURLs.push({ bookURL, ids })
-      }
-    })
-
-    return duplicateBookURLs
-  } catch (error) {
-    console.error('Error finding duplicate bookURLs:', error)
-    return []
-  } finally {
-    await prisma.$disconnect()
-  }
-}
+};
 
 export const getBookPage = async (req: Request, res: Response) => {
   let page = Number(req.query.page) || 1;
@@ -159,136 +116,108 @@ export const getBookInfo = async (req: Request, res: Response) => {
   }
 }
 
-export const bookAddChapters = async (req: Request, res: Response) => {
-  // poulkates Chapters to a Book
-  try {
-    if (!req.params.bookId) {
-      res.status(404).json({ message: 'Specification not found' })
-      return
-    }
-    if (!req.body.nr) {
-      res.status(404).json({ message: 'requset Body doe not have chapters nr' })
-      return
-    }
+// export const bookAddChapters = async (req: Request, res: Response) => {
+//   // poulkates Chapters to a Book
+//   try {
+//     if (!req.params.bookId) {
+//       res.status(404).json({ message: 'Specification not found' })
+//       return
+//     }
+//     if (!req.body.nr) {
+//       res.status(404).json({ message: 'requset Body doe not have chapters nr' })
+//       return
+//     }
 
-    const book = await prisma.book.findUnique({
-      where: {
-        id: req.params.bookId,
-      },
-    })
-    if (!book) {
-      res.status(404).json({ message: 'Book not found' })
-      return
-    }
+//     const book = await prisma.book.findUnique({
+//       where: {
+//         id: req.params.bookId,
+//       },
+//     })
+//     if (!book) {
+//       res.status(404).json({ message: 'Book not found' })
+//       return
+//     }
 
-    const chapters: Chapter[] = []
-    const result = await axios.put(
-      `${pyServer}/get/chapters`,
-      { bookURL: book.bookURL + '#tab-chapters-title' },
-      {
-        responseType: 'json',
-        maxContentLength: Infinity,
-        maxBodyLength: Infinity,
-      }
-    )
-    if (!result.data.ch_list) {
-      res.status(404).json({ message: 'No chapters found' })
-      return
-    }
+//     const chapters: Chapter[] = []
+//     const result = await axios.put(
+//       `${pyServer}/get/chapters`,
+//       { bookURL: book.bookURL + '#tab-chapters-title' },
+//       {
+//         responseType: 'json',
+//         maxContentLength: Infinity,
+//         maxBodyLength: Infinity,
+//       }
+//     )
+//     if (!result.data.ch_list) {
+//       res.status(404).json({ message: 'No chapters found' })
+//       return
+//     }
 
-    result.data.ch_list.forEach((ch: string[]) => {
-      const newCh: Chapter = {
-        chapterNumber: parseInt(req.body.nr),
-        title: ch[0],
-        chapterURL: ch[1],
-        text: null,
-      }
-      chapters.push(newCh)
-    })
+//     result.data.ch_list.forEach((ch: string[]) => {
+//       const newCh: Chapter = {
+//         chapterNumber: parseInt(req.body.nr),
+//         title: ch[0],
+//         chapterURL: ch[1],
+//         text: null,
+//       }
+//       chapters.push(newCh)
+//     })
 
-    const updatedBook = await prisma.book.update({
-      where: {
-        id: req.params.bookId,
-      },
-      data: {
-        chList: chapters,
-      },
-    })
-    res.status(200).json({ chapters: chapters, updatedBook: updatedBook })
-  } catch (error: any) {
-    res.status(500).json({ message: error.message })
-  }
-}
+//     const updatedBook = await prisma.book.update({
+//       where: {
+//         id: req.params.bookId,
+//       },
+//       data: {
+//         chList: chapters,
+//       },
+//     })
+//     res.status(200).json({ chapters: chapters, updatedBook: updatedBook })
+//   } catch (error: any) {
+//     res.status(500).json({ message: error.message })
+//   }
+// }
 
-export const getChapter = async (req: Request, res: Response) => {
-  //!BROKEN FIX CODE
-  try {
-    console.log(req.params)
-    if (!req.params.bookId) {
-      res.status(404).json({ message: 'Book id not provided' })
-      return
-    }
-    if (!req.body.nr || !req.body.bookURL) {
-      res
-        .status(404)
-        .json({ message: 'Book URL or Chapter number not provided' })
-      return
-    }
+// export const getChapter = async (req: Request, res: Response) => {
+//   //!BROKEN FIX CODE
+//   try {
+//     console.log(req.params)
+//     if (!req.params.bookId) {
+//       res.status(404).json({ message: 'Book id not provided' })
+//       return
+//     }
+//     if (!req.body.nr || !req.body.bookURL) {
+//       res
+//         .status(404)
+//         .json({ message: 'Book URL or Chapter number not provided' })
+//       return
+//     }
 
-    const book = await prisma.book.findUnique({
-      where: { id: req.params.bookId },
-    })
+//     const book = await prisma.book.findUnique({
+//       where: { id: req.params.bookId },
+//     })
 
-    if (!book) {
-      res.status(404).json({ message: 'Book not found' })
-      return
-    }
-    const chapterNumber = parseInt(req.params.chapterNumber)
+//     if (!book) {
+//       res.status(404).json({ message: 'Book not found' })
+//       return
+//     }
+//     const chapterNumber = parseInt(req.params.chapterNumber)
 
-    const chapter: Chapter | undefined = book.chList.find(
-      (c) => c?.chapterNumber === chapterNumber
-    )
+//     const chapter: Chapter | undefined = book.chList.find(
+//       (c) => c?.chapterNumber === chapterNumber
+//     )
 
-    if (!chapter) {
-      res.status(404).json({ message: 'Chapter not found' })
-      return
-    }
+//     if (!chapter) {
+//       res.status(404).json({ message: 'Chapter not found' })
+//       return
+//     }
 
-    res.json(chapter)
-  } catch (error: any) {
-    console.error('Error getting chapter:', error) // Log the error
-    res.status(500).json({ message: error.message })
-  }
-}
+//     res.json(chapter)
+//   } catch (error: any) {
+//     console.error('Error getting chapter:', error) // Log the error
+//     res.status(500).json({ message: error.message })
+//   }
+// }
 
-export const getChapterAudio = async (req: AuthRequest, res: Response) => {
-  try {
-    const chapterUrl = req.body.chUrl
-    const filename = req.body.filename
-    if (!chapterUrl) {
-      res.status(400).json({ message: 'Chapter URL is not provided' })
-      return
-    }
-
-    if (!req.user?.id) {
-      res.status(404).json({ message: 'User is not authorized' })
-      return
-    }
-    const result = await axios.post(pyServer + '/get/chapters/audio', {
-      ch_url: chapterUrl,
-      filename: filename,
-      user_id: req.user.id.toString(),
-    })
-
-    if (!result.data) {
-      res.status(404).json({ message: 'No chapter audio found' })
-      return
-    }
-    res.status(201).json({ message: 'got chapterAudio', audio: result.data })
-  } catch (error: any) {
-    res.status(500).json({ message: error.message })
-  }
-}
 
 export const getStreamKey = async (req: AuthRequest, res: Response) => {
   try {

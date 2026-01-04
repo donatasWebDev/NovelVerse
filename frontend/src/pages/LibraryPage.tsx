@@ -1,11 +1,32 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { AudioBookCard } from "../components/AudioBookCard";
+import { useLibrary } from "../uttils/LibraryContext";
+import { Book } from "../types";
 export const LibraryPage = () => {
-
+  const { library } = useLibrary()!; // Assumed library context
+  const books: Book[] = library?.books || [];
   return <div className="p-4">
-      <h2 className="text-2xl font-bold text-gray-100 mb-6">Your Library</h2>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        <span className="text-3xl text-white">Mkae the app remember your saved books here. 20 in a cycle or more idk or add a favorite mechanizm</span>
-      </div>
-    </div>;
+    <h1 className="text-2xl font-bold text-gray-100 mb-4">My Library</h1>
+    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      {books?.length === 0 ? (
+        <p className="text-gray-400">No books found.</p>
+      ) : (
+        books.map((book) => (
+          <AudioBookCard
+            key={book.id}
+            id={book.id}
+            title={book.title}
+            author={book.author}
+            coverImg={book.coverImg}
+            categoryList={book.categoryList}
+            numberOfChapters={book.numberOfChapters}
+            bookURL={book.bookURL}
+            isComplete={book.isComplete}
+            chList={book.chList}
+          />
+        ))
+      )}
+    </div>
+  </div>
+
 };

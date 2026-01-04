@@ -1,4 +1,4 @@
-import { PrismaClient, User, Book, Prisma, BookChList, LatestRead } from '@prisma/client'
+import { PrismaClient, User, Book, Prisma, LatestRead } from '@prisma/client'
 import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';

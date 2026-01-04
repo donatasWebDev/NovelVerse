@@ -1,0 +1,34 @@
+version: '3.8'
+services:
+  py_server:
+    build:
+      context: .
+      dockerfile: Dockerfile-server
+    ports:
+      - "4001:4001"  # Host:Container
+    environment:
+      - NODE_BACK_URL=http://host.docker.internal:4000  # Container to host Node
+      - OTHER_ENV=your-shit
+    volumes:
+      - .:/app
+
+  py_socket:
+    build:
+      context: .
+      dockerfile: Dockerfile-socket
+    ports:
+      - "12345:12345"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - PYTHONUNBUFFERED=1
+      - NVIDIA_VISIBLE_DEVICES=all
+      - PY_SERVER_URL=http://py_server:4001  # Internal container to container
+      - NODE_BACK_URL=http://host.docker.internal:4000  # If socket needs Node too
+    volumes:
+      - .:/app

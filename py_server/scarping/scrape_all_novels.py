@@ -1,154 +1,133 @@
+import requests
+from bs4 import BeautifulSoup
+from fake_useragent import UserAgent
 import time
-import timeit
-import asyncio
+import random
 import json
 import re
-# import cloudscraper
-from colorama import Fore, Back, Style
-from scrape import scrape_novel_info,load_page_soup
-from bs4 import BeautifulSoup
- 
+import logging
+from colorama import Fore, Style
 
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Referer": "https://google.com",
-    "Accept-Language": "en-US,en;q=0.9",
-}
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+ua = UserAgent()
+BASE_URL = "https://www.fanmtl.com"
+JSONL_FILE = "fanmtl_novels.jsonl"
+PAGE_FILE = "latest_page.txt"
 
-#scrapes all novels for novel bin
-def scrape_all_novels(url):
+novels = []
 
-    response = load_page_soup(url)
-    
-    
-    
-    if response.status_code != 200:
-        print(f"Failed to retrieve page: {response.status_code}")
+def get_last_page():
+    try:
+        with open(PAGE_FILE, "r") as f:
+            return int(f.read().strip())
+    except (FileNotFoundError, ValueError):
+        return 0  # Start from page 1 if no file or invalid
+
+def save_last_page(page):
+    with open(PAGE_FILE, "w") as f:
+        f.write(str(page))
+
+def load_page_soup(url):
+    headers = {"User-Agent": ua.random}
+    try:
+        response = requests.get(url, headers=headers, timeout=30)
+        if response.status_code == 200:
+            return BeautifulSoup(response.text, 'html.parser')
+        logging.warning(f"HTTP {response.status_code} on {url}")
+        return None
+    except Exception as e:
+        logging.error(f"Request error {url}: {e}")
         return None
 
-    soup = BeautifulSoup(response.text, "html.parser")
-    if soup:
-        el = soup.find("div", class_="list list-novel col-xs-12")
-        rows = el.find_all("div", class_="row")
-        max_novel = 0
-        with open("novel_list_realtime", "a", encoding='utf-8') as f:
-            for row in rows:
-                title = None
-                base_url = None
-                max_ch = None
-        
-                title_el = row.find("h3", class_="novel-title") # getting title and base_url
-                if title_el:
-                    a_tag = title_el.find("a")
-                    if a_tag:
-                        title = a_tag.text.strip()
-                        base_url = a_tag.get("href")
-                else:
-                    print("Title element not found.")
-                    continue
-                ch_el = row.find("span", class_="chr-text chapter-title")
-                if ch_el:
-                    if not ch_el.get("data-chapter_id"):
-                        print("Chapter id not found.")
-                        continue
-                    ch_title = ch_el.get("data-chapter_id").strip().split("-")
-                    if len(ch_title) < 2:
-                        print("Chapter title not found.")
-                        continue
-                    max_ch = ch_title[1]
-                    
-                else:
-                    print("Title element not found.")
-                    continue
-                max_novel += 1
-                novels.append((title, base_url, max_ch))
-                f.write(f"{title} && {base_url} && {max_ch}\n")
-            f.close()
-        return max_novel
+def scrape_page(page_num):
+    url = f"{BASE_URL}/list/all/all-newstime-{page_num}.html"  # Confirmed working pattern
+    soup = load_page_soup(url)
+    if not soup:
+        return 0
 
-def scrape_all_novels_data(page_url):
-    with open("scraped_pages.txt", "a") as f:
-        f.write(f"{page_url}\n")
-        f.close()
-        
-    print(f"Trying to scrape page: {page_url}")
-    try:
-        
-        soup = load_page_soup(page_url)
-        
-        if soup:
-            el = soup.find("div", class_="list list-novel col-xs-12")
-            rows = el.find_all("div", class_="row")
-            max_novel = 0
-            with open("novel_list_realtime.jsonl", "a", encoding='utf-8') as f:
-                for row in rows:
-                    title = None
-                    base_url = None
-                    ch_title = None
-                    data = {}
-            
-                    url_el = row.find("h3", class_="novel-title") # getting title and base_url
-                    if url_el:
-                        a_tag = url_el.find("a")
-                        if a_tag:
-                            title = a_tag.text.strip()
-                            base_url = a_tag.get("href")
-                    else:
-                        print("Title element not found.")
-                        continue
-                    ch_el = row.find("span", class_="chr-text chapter-title")
-                    if ch_el:
-                        ch_title = ch_el.text.strip()
-                        if not ch_title:
-                            print(f"Chapter id not found./ {ch_title}")
-                            continue
-                        
-                    else:
-                        print("Title element not found.")
-                        continue
-                    
-                    if base_url:
-                        time.sleep(1)
-                        isComplete, Genres, Author, imgUrl = scrape_novel_info(base_url)
-                        if not imgUrl:
-                            print(Fore.RED + f"No data found for {base_url}" + Style.RESET_ALL)
-                            continue
-                    # Remove matches
-                    title_cleaned = re.sub(r'[\"?*]', '', title)
-                    obj = {
-                        "title": title_cleaned,
-                        "author": Author,
-                        "category": Genres,
-                        "isComplete": isComplete,
-                        "coverImg": imgUrl,
-                        "bookURL": base_url,
-                        "numberOfChapters": ch_title,          
-                    }
-                    
-                    max_novel += 1
-                    novels.append(obj)
-                    f.write(json.dumps(obj, ensure_ascii=False) + "\n")
-                    print(Fore.GREEN , obj , Style.RESET_ALL)
-                f.close()
-            print(max_novel)
-            return max_novel
-    except Exception as e:
-        if e != 403:
-            print(Fore.RED + f"Err getting  Request: {e}" + Style.RESET_ALL)
-     
-novels = [] 
-LATEST_BASE_URL = "https://novelbin.me/sort/novelbin-daily-update?page=435".strip().split("=")
-max_pages = int(LATEST_BASE_URL[1])
+    # Repeating novel items - flexible for fanmtl structure
+    items = soup.find_all("div", class_=re.compile(r"novel-item|item|list-item", re.I)) or soup.find_all("li")
 
-for i in range(1, max_pages+1):  # Make sure to loop over the correct range
-    time.sleep(1)  # to avoid being blocked by the website
-    
-    # Use await to fetch data from the coroutine function
-    max_novel = scrape_all_novels_data(LATEST_BASE_URL[0] + f"={i}")
-    print(Fore.BLUE, f"Scraping page {i}/{max_pages}\n got novels {max_novel}/20", Style.RESET_ALL)
-    
-with open("novel_list_all.json", "w", encoding='utf-8') as f:
+    added = 0
+    with open(JSONL_FILE, "a", encoding="utf-8") as f:
+        for item in items:
+            a_tag = item.find("a", href=re.compile(r"/novel/"))
+            if not a_tag:
+                continue
+
+            book_url = a_tag['href']
+            if not book_url.startswith("http"):
+                book_url = BASE_URL + book_url
+
+            title = re.sub(r'[\"?*<>|]', '', a_tag.get("title") or a_tag.text.strip() or "Unknown")
+
+            img_tag = item.find("img")
+            cover_img = None
+            if img_tag:
+                # Priority: data-src > data-original > src (fallback placeholder)
+                cover_img = img_tag.get('data-src') or img_tag.get('data-original') or img_tag.get('src')
+                if cover_img and not cover_img.startswith("http"):
+                    cover_img = BASE_URL + cover_img
+                # Skip if still placeholder
+                if cover_img and "placeholder" in cover_img:
+                    cover_img = None  # Or keep as placeholder if you want
+
+            text = item.get_text(separator=" ")
+            chapters_match = re.search(r'(\d+)\s*Chapters?', text, re.I)
+            num_chapters = int(chapters_match.group(1)) if chapters_match else 0
+
+            is_complete = "Completed" in text or "Complete" in text
+
+            author = "Unknown"  # Often missing on list
+
+            categories = []
+            tag_as = item.find_all("a", href=re.compile(r"/tag/|/genre/"))
+            for tag_a in tag_as:
+                categories.append(tag_a.text.strip())
+
+            novel_data = {
+                "title": title,
+                "author": author,
+                "category": categories,
+                "isComplete": is_complete,
+                "coverImg": cover_img,
+                "bookUrl": book_url,
+                "numberOfChapters": num_chapters
+            }
+
+            json.dump(novel_data, f, ensure_ascii=False)
+            f.write("\n")
+
+            novels.append(novel_data)
+            added += 1
+            logging.info(f"{Fore.GREEN}{title} - {num_chapters} chapters{Style.RESET_ALL}")
+
+    return added
+
+# MAIN CRAWL WITH REDUNDANCY
+max_pages = 500
+start_page = get_last_page() + 1  # Resume from next
+total = 0
+
+logging.info(f"Resuming from page {start_page}/{max_pages}")
+
+for page in range(start_page, max_pages + 1):
+    logging.info(f"Scraping page {page}/{max_pages}")
+    added = scrape_page(page)
+    if added == 0:
+        logging.warning("No novels added - possible bad page or block - pausing longer")
+        time.sleep(10)
+    total += added
+    logging.info(f"Page {page} done - {added} novels - Total: {total}")
+
+    save_last_page(page)  # Save progress after success
+
+    time.sleep(random.uniform(1.5, 3.5))  # Polite delay
+
+logging.info(f"Crawl complete! {total} novels in {JSONL_FILE}")
+logging.info(f"Last page saved: {get_last_page()}")
+
+# Optional full JSON dump
+with open("fanmtl_all.json", "w", encoding="utf-8") as f:
     json.dump(novels, f, indent=4, ensure_ascii=False)
-    f.close()
-

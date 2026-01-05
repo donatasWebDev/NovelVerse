@@ -4,7 +4,14 @@ import axios from "axios";
 import Cookies from "js-cookie";
 import {UserType} from "../types"
 
-const url = import.meta.env.VITE_API_BASE_URL || "Test_env_value";
+
+const isDev = import.meta.env.DEV;
+const url = isDev 
+  ? (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001') 
+  : '' + "/api";
+  
+  
+
 console.log("API Base URL:", url);
 
 

@@ -8,13 +8,13 @@ import bodyParser from 'body-parser';
 import dotenv from 'dotenv';
 
 import userRouter from "./routs/user/userRouts"; // Correct import
-import calandarRouter from "./routs/library/libraryRouts"; // Correct import
+import libraryRouter from "./routs/library/libraryRouts"; // Correct import
 
 
 dotenv.config();
 const app = express();
 const server = createServer(app);
-const port = 4000
+const port = 8001
 
 const corsOptions = {
   origin: ["http://localhost:5173","http://192.168.0.242:5173"],
@@ -60,4 +60,4 @@ mongoose
 app.use(bodyParser.json());
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/user', userRouter )
-app.use("/api/lib", calandarRouter)
+app.use("/api/lib", libraryRouter)

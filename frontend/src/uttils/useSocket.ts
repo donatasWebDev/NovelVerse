@@ -1,102 +1,131 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback } from 'react'
 
-const DEFAULT_URL = import.meta.env.VITE_WS_URL || "Test_env_value_socket";
+const DEFAULT_WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:12345'
 
+// Vite sets import.meta.env.DEV automatically (true in dev, false in build/prod)
+const isDev = import.meta.env.DEV
 
-export const useSocket = (url: string = DEFAULT_URL) => {
-    const socketRef = useRef<WebSocket | null>(null);
+let wsUrl: string
 
-    const [messages, setMessages] = useState<any[]>([]);
-    const [audio, setAudio] = useState<ArrayBuffer[]>([]);
-    const [isConnected, setIsConnected] = useState(false);
-    const [error, setError] = useState<Error | null>(null);
-    const [data, setData] = useState<{ key: string| null; user_id: string | null }>();
+if (isDev) {
+  wsUrl = DEFAULT_WS_URL
+} else {
+  // Prod: relative through nginx proxy
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  wsUrl = `${protocol}//${window.location.host}/ws`
+}
 
-    const connect = useCallback((key: string, user_id: string) => {
-        if (socketRef.current) {
-            socketRef.current.close();
-        }
+export const useSocket = (url: string = wsUrl) => {
+  const socketRef = useRef<WebSocket | null>(null)
 
-        const ws = new WebSocket(url);
+  const [messages, setMessages] = useState<any[]>([])
+  const [audio, setAudio] = useState<ArrayBuffer[]>([])
+  const [isConnected, setIsConnected] = useState(false)
+  const [error, setError] = useState<Error | null>(null)
+  const [data, setData] = useState<{
+    key: string | null
+    user_id: string | null
+  }>()
 
-        ws.onopen = () => {
-            console.log("WebSocket connected");
-            socketRef.current = ws;
-            setIsConnected(true);
-            setData({ key, user_id });
-            sendMessage(`${key},${user_id}`);
-        };
+  const connect = useCallback(
+    (key: string, user_id: string) => {
+      if (socketRef.current) {
+        socketRef.current.close()
+      }
 
-        ws.onclose = () => {
-            console.log("WebSocket disconnected");
-            setIsConnected(false);
-        };
+      const ws = new WebSocket(url)
 
-        ws.onerror = (err) => {
-            console.error("WebSocket error:", err);
-            setError(err as any);
-        };
+      ws.onopen = () => {
+        console.log('WebSocket connected')
+        socketRef.current = ws
+        setIsConnected(true)
+        setData({ key, user_id })
+        sendMessage(`${key},${user_id}`)
+      }
 
-        ws.onmessage = (event) => {
-            try {
-                const obj = JSON.parse(event.data);
+      ws.onclose = () => {
+        console.log('WebSocket disconnected')
+        setIsConnected(false)
+      }
 
-                if (obj.type === "audio") {
-                    const base64 = obj.message.audio_bytes;
-                    const binaryString = atob(base64);
-                    const buffer = new Uint8Array(binaryString.length);
+      ws.onerror = (err) => {
+        console.error('WebSocket error:', err)
+        setError(err as any)
+      }
 
-                    for (let i = 0; i < binaryString.length; i++) {
-                        buffer[i] = binaryString.charCodeAt(i);
-                    }
-
-                    setAudio((prev) => [...prev, buffer.buffer]);
-                    console.log("Received audio chunk", buffer.buffer);
-                } else {
-                    console.log("Received message:", obj);
-                    setMessages((prev) => [...prev, obj]);
-                }
-            } catch (e) {
-                console.error("Message parse error:", e);
-            }
-        };
-
-        socketRef.current = ws;
-    }, [url]);
-
-    const disconnect = useCallback(() => {
-        console.log("Disconnecting socket");
-        const sock = socketRef.current;
-
-        if (!sock) {
-            console.log("No active socket to close");
-            return;
-        }
-
-        sock.close();
-        socketRef.current = null;
-
-        setIsConnected(false);
-        setMessages([]);
-        setAudio([]);
-    }, []);
-
-    const sendMessage = useCallback((message: any) => {
-        const sock = socketRef.current;
-
-        if (!sock || sock.readyState !== WebSocket.OPEN) {
-            setError(new Error("WebSocket not connected"));
-            return;
-        }
-
+      ws.onmessage = (event) => {
         try {
-            const msg = typeof message === "object" ? JSON.stringify(message) : message;
-            sock.send(msg);
-        } catch (err) {
-            console.error("Send error:", err);
-            setError(err instanceof Error ? err : new Error(String(err)));
-        }
-    }, []);
+          const obj = JSON.parse(event.data)
 
-    return { connect, disconnect, sendMessage, messages, audio, isConnected, socketRef, error, data };
-};
+          if (obj.type === 'audio') {
+            const base64 = obj.message.audio_bytes
+            const binaryString = atob(base64)
+            const buffer = new Uint8Array(binaryString.length)
+
+            for (let i = 0; i < binaryString.length; i++) {
+              buffer[i] = binaryString.charCodeAt(i)
+            }
+
+            setAudio((prev) => [...prev, buffer.buffer])
+            console.log('Received audio chunk', buffer.buffer)
+          } else {
+            console.log('Received message:', obj)
+            setMessages((prev) => [...prev, obj])
+          }
+        } catch (e) {
+          console.error('Message parse error:', e)
+        }
+      }
+
+      socketRef.current = ws
+    },
+    [url]
+  )
+
+  const disconnect = useCallback(() => {
+    console.log('Disconnecting socket')
+    const sock = socketRef.current
+
+    if (!sock) {
+      console.log('No active socket to close')
+      return
+    }
+
+    sock.close()
+    socketRef.current = null
+
+    setIsConnected(false)
+    setMessages([])
+    setAudio([])
+  }, [])
+
+  const sendMessage = useCallback((message: any) => {
+    const sock = socketRef.current
+
+    if (!sock || sock.readyState !== WebSocket.OPEN) {
+      setError(new Error('WebSocket not connected'))
+      return
+    }
+
+    try {
+      const msg =
+        typeof message === 'object' ? JSON.stringify(message) : message
+      sock.send(msg)
+    } catch (err) {
+      console.error('Send error:', err)
+      setError(err instanceof Error ? err : new Error(String(err)))
+    }
+  }, [])
+
+  return {
+    connect,
+    disconnect,
+    sendMessage,
+    messages,
+    audio,
+    isConnected,
+    socketRef,
+    error,
+    data,
+  }
+}

@@ -2,21 +2,24 @@ FROM nvidia/cuda:11.8.0-runtime-ubuntu22.04
 
 # Install Python + pip FIRST (so Torch pip works)
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends python3.10 python3-pip && \
+    apt-get install -y --no-install-recommends python3.10 python3-pip git && \
     ln -sf /usr/bin/python3.10 /usr/bin/python && \
     ln -sf /usr/bin/pip3 /usr/bin/pip && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 
 
-WORKDIR /app
+WORKDIR /app/socket
 
 # Now Torch pip works
 RUN pip install --no-cache-dir torch==2.1.0+cu118 torchvision==0.16.0+cu118 torchaudio==2.1.0 --index-url https://download.pytorch.org/whl/cu118
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+    apt-get install -y --no-install-recommends \
+        ffmpeg \
+        libmp3lame0 \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 
@@ -45,7 +48,7 @@ ENV NVIDIA_VISIBLE_DEVICES=all
 ENV NVIDIA_DRIVER_CAPABILITIES=compute,utility
 
 # Code
-COPY . /app/
+COPY . /app/socket/
 
 EXPOSE 12345
 CMD ["python", "/app/py_socket.py"]

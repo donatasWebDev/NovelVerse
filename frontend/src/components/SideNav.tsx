@@ -5,8 +5,7 @@ import { UserProfile } from "./UserProfile";
 import { RegisterLogin } from "./RegisterLogin.tsx";
 import { useAuth } from "../uttils/AuthContex.tsx";
 import { useLibrary } from "../uttils/LibraryContext.tsx";
-import { NovelVerseLogo } from "./scalableLogo.tsx"
-import { get } from "http";
+import { NovelVerseLogo } from "./ScalableLogo.tsx"
 import { BookCurrent } from "../types.ts";
 export const SideNav = () => {
   const { user } = useAuth()!

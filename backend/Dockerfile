@@ -1,20 +1,18 @@
-FROM node:23-alpine
+FROM node:20-bookworm-slim
 
-WORKDIR /app
+# Install TypeScript and ts-node globally
+RUN npm install -g ts-node typescript
 
-# Add these if you still need to compile native deps
-RUN apk add --no-cache python3 make g++
+WORKDIR /app/backend
 
-COPY backend/package.json ./
-COPY backend/package-lock.json ./
-
+# Copy package files and install deps
+COPY backend/package*.json ./
 RUN npm install
 
-COPY backend .
-
-# Expose port (optional, if your app uses a specific port)
-RUN npx prisma generate
+# Copy source code
+COPY backend/ .
 
 EXPOSE 4000
 
-CMD ["npm", "start"]
+# Run with ts-node (no build needed)
+CMD ["ts-node", "./index.ts"]

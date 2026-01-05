@@ -31,7 +31,8 @@ packet_size = 2048  # Size of each packet to be sent
 backlog_ratio = 0.1  # Adjust this ratio for smoother streaming
 
 
-URL = os.getenv("NODE_BACK_URL", "http://host.docker.internal:4000")+"/api/lib/verify"
+# URL = os.getenv("NODE_BACK_URL", "http://host.docker.internal:4000")+"/api/lib/verify"
+URL = "/api/lib/verify"
 task_queue = TaskQueue( DTYPE, SAMPLE_RATE, BLOCK_SIZE, MAX_WORKERS)
 isReady = False
 
@@ -39,10 +40,15 @@ WPM = 200  # words per minute for speech duration calculation
 MAX_FAILED_ATTEMPTS = 5
 
 
-ffmpeg_path = os.path.join(os.getcwd(), "ffmpeg.exe")  # project root
-AudioSegment.ffmpeg = ffmpeg_path
-AudioSegment.ffprobe = ffmpeg_path.replace("ffmpeg.exe", "ffprobe.exe")
-AudioSegment.converter = ffmpeg_path
+#?DEV
+# ffmpeg_path = os.path.join(os.getcwd(), "ffmpeg.exe")  # project root
+# AudioSegment.ffmpeg = ffmpeg_path
+# AudioSegment.ffprobe = ffmpeg_path.replace("ffmpeg.exe", "ffprobe.exe")
+# AudioSegment.converter = ffmpeg_path
+
+#?PROD
+AudioSegment.converter = "ffmpeg"
+AudioSegment.ffprobe = "ffprobe"
 
 # Each socket gets its own buffers and task state
 
@@ -296,18 +302,10 @@ async def generate_audio(text, websocket):
                 should_attempt_send = buf["warm_up"] and len(buf["primary_buffer"]) > 0
             # output prime buff / dont stop making audio and store everthing in one buffer 
             if should_attempt_send:
-                duration_s = await send_audio_chunk(websocket)
-                if duration_s is not None and duration_s > 0:
-                    await asyncio.sleep(duration_s) # Wait for the chunk to "play"
-                else:
-                    await asyncio.sleep(0.01) # Small sleep to prevent busy-waiting
+                await send_audio_chunk(websocket)
+                await asyncio.sleep(0.08)  # ~12 chunks/sec max — tune to your chunk size
             else:
-                # If not warmed up yet, or no data to send after warm-up, wait briefly
-                await asyncio.sleep(0.01) # Small sleep to prevent busy-waiting
-
-            #possible souces for slow rate in not pc is timout on task Queue 
-
-            #wait for prime
+                await asyncio.sleep(0.01)
 
 
     except KeyboardInterrupt:

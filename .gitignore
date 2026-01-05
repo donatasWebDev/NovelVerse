@@ -29,5 +29,9 @@ py_server/scraping/*.json
 py_server/scraping/*.jsonl
 py_server/scraping/*.txt
 
+**/dist/
+**/build/
+
+
 # Docker
 *.tar  # Saved Docker images

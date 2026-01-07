@@ -8,14 +8,18 @@ import {
   Redo,
   Type,
   ChevronDown,
+  SkipForward,
+  SkipBack,
   X,
 } from "lucide-react";
 // import { useNavigate } from "react-router-dom";
 import { ChDropDown } from "../components/chDropDown"
 import Player, { PlayerCompRef } from "../components/Player"
-import { useSocketContext  } from "../uttils/socketContext";
+import { useSocketContext } from "../uttils/socketContext";
 import { useAuth } from "../uttils/AuthContex";
 import { useLibrary } from "../uttils/LibraryContext";
+import { Link } from "react-router-dom";
+import { verify } from "crypto";
 // import { useLibrary } from "../uttils/LibraryContext";
 
 interface AudioPlayerPageProps {
@@ -38,33 +42,55 @@ export const AudioPlayerPage = ({
   const playerRef = useRef<PlayerCompRef>(null); // Ref to access Player component
   const [loading, setLoading] = useState<boolean>(true);
   const [chapterInfo, setChapterInfo] = useState<any>(null)
-  const {user} = useAuth()
-  const {streamKey} = useLibrary()
+  const [streamKey, setStreamKey] = useState<string | null>(null)
+  const [chapterNr, setChapterNr] = useState<number>(chapter)
+  const [playerKey, setPlayerKey] = useState<string>('');
+  const { user } = useAuth()
+  const { getStreamKey, verifyStreamKey } = useLibrary()!
   const [lastChunkSentIndex, setLastChunkSentIndex] = useState(-1);
 
   const { connect, isConnected, sendMessage, messages, socketRef, audio: socketAudioChunks } = useSocketContext()
 
 
+  useEffect(() => {
+    const initAuthAndSocket = async () => {
+      try {
+        console.log("AudioPlayerPage: Fetching streamKey...");
+        const token = await getStreamKey() // Assuming this returns { token: string | null }
 
+        if (!token) {
+          console.error("No token available – auth failed");
+          return;
+        }
 
-useEffect(() => {
-  if (!isConnected && streamKey && user) {
-    connect(streamKey, user.id);
-  }
+        console.log("StreamKey fetched:", token);
 
-  if (isConnected && streamKey && user) {
-    handleSendMessagePlay();
-  }
+        if (user?.id) {
+          if (await verifyStreamKey(token, user.id)) {
+            console.log("StreamKey verified successfully");
+            setStreamKey(token);
+          }
+        }
+      } catch (err) {
+        console.error("Auth init error in AudioPlayerPage:", err);
+        // Handle UI error: toast or alert
+      }
+    };
 
-  // KEEP ALIVE PING EVERY 5s
-  const pingInterval = setInterval(() => {
-    if (isConnected) {
-      socketRef.current?.send(JSON.stringify({ type: "ping" }));
+    initAuthAndSocket();
+  }, []); // Run once on mount
+
+  useEffect(() => {
+    console.log("attempting to connect socket, isConnected:", isConnected, "streamKey:", streamKey, "user:", user);
+    if (!isConnected && streamKey && user) {
+      console.log("Connecting to socket with streamKey:", streamKey, "and userId:", user.id);
+      connect(streamKey, user.id);
     }
-  }, 5000);
 
-  return () => clearInterval(pingInterval);
-}, [streamKey, isConnected, user]);
+    if (isConnected && streamKey && user) {
+      handleSendMessagePlay();
+    }
+  }, [streamKey, isConnected, user]);
 
   useEffect(() => {
     if (!book && !chapter) {
@@ -72,8 +98,11 @@ useEffect(() => {
       return
     }
     console.log("AudioPlayerPage loaded with book:", book, "chapter:", chapter)
+    const newKey = `${book.id || 'unknown'}-${chapter || '0'}`;
+    console.log(`Chapter switched – forcing Player re-mount with new key: ${newKey}`);
+    setPlayerKey(newKey);
     setPlaybackSpeed(book.speed)
-
+    setLastChunkSentIndex(-1);
     const currentChapter = {
       ...book,
       chapterURL: `${book.bookURL.split(".html")[0]}_${chapter}.html`,
@@ -83,6 +112,7 @@ useEffect(() => {
       return
     }
     handleGetCurrentChapterAudio(currentChapter.chapterURL)
+
 
   }, [chapter, book])
 
@@ -94,19 +124,25 @@ useEffect(() => {
       }
 
     }
-  }, [messages ])
+  }, [messages])
 
   useEffect(() => {
-      if (socketAudioChunks.length >0 && !audioLoaded) {
-        setIsPlaying(true);
-        setAudioLoaded(true);
-      }
+    if (socketAudioChunks.length > 0 && !audioLoaded) {
+      setIsPlaying(true);
+      setAudioLoaded(true);
+    }
   }, [socketAudioChunks])
 
 
   const handlePlayerRequestsMoreData = useCallback(() => {
     // Check if there are new chunks available in socketAudioChunks
     // beyond what has already been sent (lastChunkSentIndex)
+
+    if (lastChunkSentIndex >= socketAudioChunks.length) {
+      console.warn(`Index out of sync with chunks (${lastChunkSentIndex} >= ${socketAudioChunks.length}) – resetting to -1`);
+      setLastChunkSentIndex(-1);  // Auto-fix if fucked
+    }
+
     if (socketAudioChunks.length > lastChunkSentIndex + 1) {
       const nextChunkIndex = lastChunkSentIndex + 1;
       const chunkToSend = socketAudioChunks[nextChunkIndex];
@@ -247,18 +283,35 @@ useEffect(() => {
       )}
       {/* Audio Controls */}
       <div className="">
-        {/* Progress Bar */}
-        <Player
-          ref={playerRef}
-          isPlaying={isPlaying}
-          setterIsPlaying={handlePlayPause}
-          playSpeed={playbackSpeed}
-          loading={audioLoaded}
-          onRequestMoreData={handlePlayerRequestsMoreData}
-          duration={chapterInfo?.message.duration || 0}
-        />
+        {
+          chapterNr && !loading ? (
+            <Player
+              key={playerKey}  // Force remount on chapter change
+              ref={playerRef}
+              isPlaying={isPlaying}
+              setterIsPlaying={handlePlayPause}
+              playSpeed={playbackSpeed}
+              loading={audioLoaded}
+              onRequestMoreData={handlePlayerRequestsMoreData}
+              duration={chapterInfo?.message.duration || 0}
+            />
+          )
+            : (<div className="flex justify-center items-center h-24">
+              <div className="w-8 h-8 border-4 border-purple-600 border-t-transparent border-solid rounded-full animate-spin"></div>
+            </div>
+            )
+        }
         {/* Main Controls */}
         <div className="flex items-center justify-center gap-6 mb-4">
+          {chapter != 1 ?
+            <Link className="text-gray-400 hover:text-gray-300"
+              to={`/play/${book.id}/${chapter - 1}`}
+            >
+              <SkipBack className="w-6 h-6" />
+            </Link>
+            :
+            <div className="w-6 h-6"></div>
+          }
           <button className="text-gray-400 hover:text-gray-300"
             onClick={handleSkipBackward}
           >
@@ -278,7 +331,11 @@ useEffect(() => {
             onClick={handleSkipForward}
           >
             <Redo className="w-6 h-6" />
-          </button>
+          </button>    {chapter != book.numberOfChapters ? <Link className="text-gray-400 hover:text-gray-300"
+            to={`/play/${book.id}/${chapter + 1}`}
+          >
+            <SkipForward className="w-6 h-6" />
+          </Link> : <div className="w-6 h-6"></div>}
         </div>
         {/* Speed Control */}
         <div className="flex justify-center">

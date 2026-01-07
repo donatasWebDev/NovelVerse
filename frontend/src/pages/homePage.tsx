@@ -8,6 +8,7 @@ import { useAuth } from "../uttils/AuthContex";
 import { useNavigate } from "react-router-dom";
 import { get } from "http";
 import { SearchIcon } from "lucide-react";
+import InfiniteScroll from "react-infinite-scroll-component";
 const categories = [
   "All Books",
   "Isekai",
@@ -25,15 +26,25 @@ export const HomePage = () => {
   const [activeCategory, setActiveCategory] = useState("All Books");
   const [loading, setLoading] = useState(true); // Track loading state
   const [page, setPage] = useState<number>(getCurrentPage());
+  const [hasMore, setHasMore] = useState(true);
   const { user } = useAuth()!
   const [searchQuery, setSearchQuery] = useState<string>("");
+  const [totalBooks, setTotalBooks] = useState<number | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const navigate = useNavigate()
+  const limit = 20
 
   useEffect(() => {
     if (library) {
-      setBooks(library.books || []); // Set books once library is available
+      if (searchQuery === "") {
+        setBooks(library.books);
+      } else {
+        setBooks(prev => [...prev, ...library.books]); // ← THIS NOW ACTUALLY ADDS
+      }
       setLoading(false); // Mark loading as false when library is set
+
+      setHasMore(library.books.length === limit);
+      setTotalBooks(library.totalBooks || null);
     }
     console.log("Library", library)
   }, [library]); // Re-run effect when library changes
@@ -51,12 +62,22 @@ export const HomePage = () => {
 
   }, []);
 
-  if (loading || !library) {
-    return <div>Loading...</div>; // Display loading state until library is set
-  }
-  // const filteredBooks = books.filter((book) =>
-  //   activeCategory === "All Books" ? true : book.categorys === activeCategory
-  // );
+  // Reset on query change
+  useEffect(() => {
+    setPage(1);
+    setHasMore(true);
+    fetchBooks(true);
+    setBooks([]);
+  }, [searchQuery]);
+
+  const fetchBooks = async (reset = false) => {
+    const currentPage = reset ? 1 : page;
+    fetchLibrary(currentPage, encodeURIComponent(searchQuery));
+
+    // If we got less than limit, no more to load
+    if (!reset) setPage(prev => prev + 1);
+  };
+
 
   function getCurrentPage(): number {
     const params = new URLSearchParams(window.location.search);
@@ -112,91 +133,137 @@ export const HomePage = () => {
           />
         </div>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {books?.length === 0 ? (
-          <p className="text-gray-400">No books found.</p>
-        ) : (
-          books.map((book) => (
-            <AudioBookCard
-              key={book.id}
-              id={book.id}
-              title={book.title}
-              author={book.author}
-              coverImg={book.coverImg}
-              categoryList={book.categoryList}
-              numberOfChapters={book.numberOfChapters}
-              bookURL={book.bookURL}
-              isComplete={book.isComplete}
-              chList={book.chList}
-            />
-          ))
-        )}
-      </div>
-      <div className="flex flex-col items-center mt-6">
-        <div className="flex items-center gap-1">
-          <div className="flex justify-center text-center items-center gap-0">
-            <svg
-              width="1.5em"
-              height="1.5em"
-              stroke-width="1.5"
-              viewBox="0 0 24 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              color="white"
-              className="mr-1.5 h-4 w-4 stroke-2"
-            >
-              <path
-                d="M15 6L9 12L15 18"
-                stroke="white"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              ></path>
-            </svg>
-            <button
-              className="sm:inline-flex hidden items-center justify-center border align-middle select-none font-sans font-medium text-center transition-all duration-300 ease-in disabled:cursor-not-allowed focus:shadow-none text-sm rounded-md py-2 px-4 pl-0 bg-transparent border-transparent text-white hover:bg-purple-800/5 hover:border-stone-800/5 shadow-none hover:shadow-none"
-            >
-              Previous
-            </button>
-          </div>
-          {getPageWindow(page).map((index) => (
-            <button
-              key={index}
-              className={`
+
+      {
+        searchQuery === "" ? (
+          // Normal pagination mode
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {books?.length === 0 ? (
+                <p className="text-gray-400">No books found.</p>
+              ) : (
+                books.map((book: any, index: number) => (
+                  <AudioBookCard
+                    key={index}
+                    id={book.id}
+                    title={book.title}
+                    author={book.author}
+                    coverImg={book.coverImg}
+                    categoryList={book.categoryList}
+                    numberOfChapters={book.numberOfChapters}
+                    bookURL={book.bookURL}
+                    isComplete={book.isComplete}
+                    chList={book.chList}
+                  />
+                ))
+              )}
+            </div>
+
+            {/* Pagination controls */}
+            <div className="flex flex-col items-center mt-6">
+              <div className="flex items-center gap-1">
+                {/* Previous button */}
+                <div className="flex justify-center text-center items-center gap-0">
+                  <svg
+                    width="1.5em"
+                    height="1.5em"
+                    stroke-width="1.5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    color="white"
+                    className="mr-1.5 h-4 w-4 stroke-2"
+                  >
+                    <path
+                      d="M15 6L9 12L15 18"
+                      stroke="white"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    ></path>
+                  </svg>
+                  <button className="sm:inline-flex hidden items-center justify-center border align-middle select-none font-sans font-medium text-center transition-all duration-300 ease-in disabled:cursor-not-allowed focus:shadow-none text-sm rounded-md py-2 px-4 pl-0 bg-transparent border-transparent text-white hover:bg-purple-800/5 hover:border-stone-800/5 shadow-none hover:shadow-none">
+                    Previous
+                  </button>
+                </div>
+
+                {/* Page numbers */}
+                {getPageWindow(page).map((index: number) => (
+                  <button
+                    key={index}
+                    className={`
                   inline-flex items-center justify-center border align-middle select-none font-sans font-medium text-center transition-all duration-300 ease-in disabled:cursor-not-allowed focus:shadow-none text-sm rounded-md py-2 px-4 border-transparent text-white hover:bg-purple-800/5 hover:border-stone-800/5 shadow-none hover:shadow-none
                   ${page === index ? "bg-purple-600" : ""}
                   `}
-              onClick={() => handlePageSelect(index)}
-            >
-              {index}
-            </button>
-          ))
-          }
-          <div className="flex justify-center text-center  items-center gap-0">
-            <button
-              className="sm:inline-flex hidden items-center justify-center border align-middle select-none font-sans font-medium text-center transition-all duration-300 ease-in disabled:cursor-not-allowed focus:shadow-none text-sm rounded-md py-2 px-4 pr-0 bg-transparent border-transparent text-white hover:bg-purple-800/5 hover:border-stone-800/5 shadow-none hover:shadow-none"
-            >
-              Next
-            </button>
-            <svg
-              width="1.5em"
-              height="1.5em"
-              stroke-width="1.5"
-              viewBox="0 0 24 24"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-              color="white"
-              className="ml-1.5 h-4 w-4 stroke-2 items-center"
-            >
-              <path
-                d="M9 6L15 12L9 18"
-                stroke="white"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              ></path>
-            </svg>
-          </div>
-        </div>
-      </div>
-    </div>
+                    onClick={() => handlePageSelect(index)}
+                  >
+                    {index}
+                  </button>
+                ))}
+
+                {/* Next button */}
+                <div className="flex justify-center text-center items-center gap-0">
+                  <button className="sm:inline-flex hidden items-center justify-center border align-middle select-none font-sans font-medium text-center transition-all duration-300 ease-in disabled:cursor-not-allowed focus:shadow-none text-sm rounded-md py-2 px-4 pr-0 bg-transparent border-transparent text-white hover:bg-purple-800/5 hover:border-stone-800/5 shadow-none hover:shadow-none">
+                    Next
+                  </button>
+                  <svg
+                    width="1.5em"
+                    height="1.5em"
+                    stroke-width="1.5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    color="white"
+                    className="ml-1.5 h-4 w-4 stroke-2 items-center"
+                  >
+                    <path
+                      d="M9 6L15 12L9 18"
+                      stroke="white"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                    ></path>
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          // Infinite scroll mode
+          <InfiniteScroll
+            dataLength={books.length}
+            next={() => fetchBooks()}
+            hasMore={hasMore}
+            loader={
+              <div className="text-center py-8">
+                <div className="w-10 h-10 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                <p className="mt-4 text-gray-400">Loading more novels...</p>
+              </div>
+            }
+            endMessage={
+              <p className="text-center py-8 text-gray-500">
+                No more results for "<span className="text-purple-400">{searchQuery}</span>" — time to cultivate a new search
+              </p>
+            }
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+              {books.map((book: any, index: number) => (
+                <AudioBookCard
+                  key={index}
+                  id={book.id}
+                  title={book.title}
+                  author={book.author}
+                  coverImg={book.coverImg}
+                  categoryList={book.categoryList}
+                  numberOfChapters={book.numberOfChapters}
+                  bookURL={book.bookURL}
+                  isComplete={book.isComplete}
+                  chList={book.chList}
+                />
+              ))}
+            </div>
+          </InfiniteScroll>
+        )
+      }
+
+    </div >
   );
 };

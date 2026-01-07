@@ -99,6 +99,10 @@ export const useSocket = (url: string = wsUrl) => {
     setAudio([])
   }, [])
 
+  const clearAudioBuffer = useCallback((): void => {
+    setAudio([])
+  }, [])
+
   const sendMessage = useCallback((message: any) => {
     const sock = socketRef.current
 
@@ -122,6 +126,7 @@ export const useSocket = (url: string = wsUrl) => {
     disconnect,
     sendMessage,
     messages,
+    clearAudioBuffer,
     audio,
     isConnected,
     socketRef,

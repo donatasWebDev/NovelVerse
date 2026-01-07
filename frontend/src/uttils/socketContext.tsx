@@ -11,15 +11,21 @@ export const SocketProvider = ({ children }: { children: ReactNode }) => {
     const socket = useSocket();
     const location = useLocation();
 
-        useEffect(() => {
-        // If the path looks like /3/play/xxxx/1
-        const shouldConnect = location.pathname.includes("/play/");
+    useEffect(() => {
+        const inPlayRoute = location.pathname.includes("/play/");
+        if (socket.isConnected) {
+            if (!inPlayRoute) {
+                console.log("Left play route – disconnecting socket");
+                socket.disconnect();
+                return;
+            }
 
-        if (!shouldConnect) {
-            console.log("Disconnecting socket due to route change");
+            socket.clearAudioBuffer()
             socket.disconnect();
         }
-    }, [location.pathname]);
+
+    }, [location.key]);  // socket in deps to avoid stale closure
+
     return <SocketContext.Provider value={socket}>{children}</SocketContext.Provider>;
 };
 

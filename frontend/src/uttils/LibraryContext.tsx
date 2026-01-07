@@ -8,12 +8,16 @@ import { useAuth } from "./AuthContex";
 import { promises } from "dns";
 
 const isDev = import.meta.env.DEV;
-const url = isDev 
-  ? (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001') 
+const url = isDev
+  ? (import.meta.env.VITE_API_BASE_URL + "/lib" || 'http://localhost:8001')
   : '' + "/api/lib";
 
 interface LibraryType {
   books: Book[]
+  totalBooks: number
+  totalPages: number
+  currentPage: number
+
 }
 
 interface LibraryContextType {
@@ -43,19 +47,17 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const { user } = useAuth()!
 
   useEffect(() => {
-    if (library) {
-      const token = Cookies.get("token");
-      if (!token) {
-        navigate("/login");
-      }
-      if (!user) {
-        navigate("/login");
-      }
+    const token = Cookies.get("token");
+    if (!token) {
+      navigate("/login");
     }
-    if (!streamKey) {
+    if (!user) {
+      navigate("/login");
+    }
+    if (!streamKey && token) {
       getStreamKey()
-        .then((streamKey) => {
-          setStreamKey(streamKey.token)
+        .then((token: string | null) => {
+          setStreamKey(token)
         })
     }
   }, [])
@@ -121,7 +123,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       const res: any = await axios.get(`${url}/get/book/${id}`);
       console.log("getBookById", res.data);
       if (res) {
-      return res.data as Book;
+        return res.data as Book;
       }
       return undefined;
     } catch (error) {
@@ -223,8 +225,8 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       })
       if (res) {
         if (res.data) {
-          console.log(res.data)
-          return res.data
+          setStreamKey(res.data.token)
+          return res.data.token
         }
       }
     }

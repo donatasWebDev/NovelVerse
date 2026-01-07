@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef, forwardRef, useCallback, useImperativeHandle } from 'react';
 import { useLibrary } from '../uttils/LibraryContext';
 import { BookCurrent } from '../types';
+import { inherits } from 'util';
 
 interface Props {
+  key: string
   isPlaying: boolean | undefined
   setterIsPlaying: (value: boolean) => void
   playSpeed: number
@@ -19,7 +21,7 @@ export interface PlayerCompRef {
   isAwaitingMoreData: () => boolean; // New method for parent to query buffer status
 }
 
-const Player = forwardRef<PlayerCompRef, Props>(({ isPlaying, duration, setterIsPlaying, playSpeed, loading, onRequestMoreData }, ref) => {
+const Player = forwardRef<PlayerCompRef, Props>(({ key, isPlaying, duration, setterIsPlaying, playSpeed, loading, onRequestMoreData }, ref) => {
 
   const mediaSourceRef = useRef<MediaSource | null>(null);
   const sourceBufferRef = useRef<SourceBuffer | null>(null);
@@ -29,7 +31,6 @@ const Player = forwardRef<PlayerCompRef, Props>(({ isPlaying, duration, setterIs
   const [currentTime, setCurrentTime] = useState<number>(0); // seconds
   const [localDuration, setLocalDuration] = useState<number>(duration || 0); // seconds
   const [bufferedEnd, setBufferedEnd] = useState<number>(0); // seconds - end of the last buffered range
-
   const [internalAppendQueue, setInternalAppendQueue] = useState<ArrayBuffer[]>([]);
   const [isSourceOpen, setIsSourceOpen] = useState(false);
 
@@ -76,7 +77,9 @@ const Player = forwardRef<PlayerCompRef, Props>(({ isPlaying, duration, setterIs
         sourceBufferRef.current.removeEventListener('error', handleSourceBufferError);
       }
     };
-  }, []); // Empty dependency array: runs once on mount
+  }, []);
+
+
 
 
   // Sync prop duration into localDuration and log for debugging when prop changes
@@ -162,10 +165,10 @@ const Player = forwardRef<PlayerCompRef, Props>(({ isPlaying, duration, setterIs
     const audio = audioRef.current;
     const sourceBuffer = sourceBufferRef.current;
 
-  const TARGET_BUFFER_SECONDS = 5; // Aim for 5 seconds of buffer ahead
-  const REQUEST_THRESHOLD_SECONDS = 2; // Request more if less than 2 seconds ahead
+    const TARGET_BUFFER_SECONDS = 5; // Aim for 5 seconds of buffer ahead
+    const REQUEST_THRESHOLD_SECONDS = 2; // Request more if less than 2 seconds ahead
 
-    if (audio && sourceBuffer && sourceBuffer  && isSourceOpen && !sourceBuffer.updating) {
+    if (audio && sourceBuffer && sourceBuffer && isSourceOpen && !sourceBuffer.updating) {
       const currentTime = audio.currentTime;
       let bufferedEnd = 0;
       if (sourceBuffer.buffered.length > 0) {
@@ -309,7 +312,7 @@ const Player = forwardRef<PlayerCompRef, Props>(({ isPlaying, duration, setterIs
       {/* Progress Bar */}
       <div className="w-full h-2">
         {
-            (() => {
+          (() => {
             const pct = localDuration && localDuration > 0 ? (currentTime / localDuration) * 100 : 0;
             const clampedPct = Math.max(0, Math.min(100, pct));
             const bufPct = localDuration && localDuration > 0 ? (bufferedEnd / localDuration) * 100 : 0;

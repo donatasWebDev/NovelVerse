@@ -65,7 +65,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           email: res.data.user.email,
           name: res.data.user.name,
           id: res.data.user.id,
-          token: token,
+          token: res.data.user.token || token
         };
 
       if (!userData.id) {

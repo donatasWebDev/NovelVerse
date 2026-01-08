@@ -14,7 +14,7 @@ import libraryRouter from "./routs/library/libraryRouts"; // Correct import
 dotenv.config();
 const app = express();
 const server = createServer(app);
-const port = 8001
+const PORT = process.env.BACKEND_PORT || 5000;
 
 const corsOptions = {
   origin: ["http://localhost:5173","http://192.168.0.242:5173"],
@@ -28,8 +28,8 @@ app.use(express.urlencoded({ limit: "100mb", extended: true }));
 
 
   app.use(cors(corsOptions));
-  server.listen(port, () => {
-    console.log(`server running at localhost:${port}`);
+  server.listen(PORT, () => {
+    console.log(`server running at localhost:${PORT}`);
   });
   
 // app.use(bodyParser.json());

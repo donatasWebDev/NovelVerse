@@ -53,10 +53,9 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
       console.log(token)
       if (!token) {
         setLoading(false)
-        navigate("/login"); // Redirect if no token (meaning user is not logged in)
+        navigate("/login");
         return
       }
-
       const res = await axios.get(`${url}/user/`, {
         headers: { Authorization: "Bearer " + token },
       });
@@ -66,10 +65,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           email: res.data.user.email,
           name: res.data.user.name,
           id: res.data.user.id,
-          token: res.data.user.token | token,
+          token: res.data.user.token || token
         };
 
       if (!userData.id) {
+        console.log("no user id found")
         navigate("/login"); // Redirect if no user ID (meaning login failed)
       } else {
         console.log(userData)

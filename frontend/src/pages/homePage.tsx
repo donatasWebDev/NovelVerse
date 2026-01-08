@@ -55,7 +55,6 @@ export const HomePage = () => {
     if (!user) {
       navigate("/login")
     }
-
     if (book) {
       setBookCurrent(book);
     }
@@ -167,7 +166,7 @@ export const HomePage = () => {
                   <svg
                     width="1.5em"
                     height="1.5em"
-                    stroke-width="1.5"
+                    strokeWidth="1.5"
                     viewBox="0 0 24 24"
                     fill="none"
                     xmlns="http://www.w3.org/2000/svg"
@@ -177,8 +176,8 @@ export const HomePage = () => {
                     <path
                       d="M15 6L9 12L15 18"
                       stroke="white"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
                     ></path>
                   </svg>
                   <button className="sm:inline-flex hidden items-center justify-center border align-middle select-none font-sans font-medium text-center transition-all duration-300 ease-in disabled:cursor-not-allowed focus:shadow-none text-sm rounded-md py-2 px-4 pl-0 bg-transparent border-transparent text-white hover:bg-purple-800/5 hover:border-stone-800/5 shadow-none hover:shadow-none">
@@ -208,7 +207,7 @@ export const HomePage = () => {
                   <svg
                     width="1.5em"
                     height="1.5em"
-                    stroke-width="1.5"
+                    strokeWidth="1.5"
                     viewBox="0 0 24 24"
                     fill="none"
                     xmlns="http://www.w3.org/2000/svg"
@@ -218,8 +217,8 @@ export const HomePage = () => {
                     <path
                       d="M9 6L15 12L9 18"
                       stroke="white"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
                     ></path>
                   </svg>
                 </div>

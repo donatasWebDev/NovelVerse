@@ -47,7 +47,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const { user } = useAuth()!
 
   useEffect(() => {
-    const token = Cookies.get("token");
+    const token = Cookies.get("userToken");
     if (!token) {
       navigate("/login");
     }

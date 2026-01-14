@@ -1,37 +1,40 @@
-# General
+# General / OS / Editor
 *.log
 .DS_Store
-.env  # MongoDB Atlas credentials
+.env
 .vscode
 
-# Node/React
-frontend/node_modules/
-frontend/build/
-backend/node_modules/
-
-
-#Backend
-backend/.env
-
-# Python
-py_server/__pycache__/
-py_server/*/__pycache__/
-py_server/*.pyc
-py_server/*.pyo
-py_server/venv/
-py_server/outputs/
-py_server/output/
-py_server/*.mp3
-py_server/*.wav
-py_server/ffmpeg.exe
-py_server/ffmpeg
-py_server/scraping/*.json
-py_server/scraping/*.jsonl
-py_server/scraping/*.txt
-
+# Node / React / Build artifacts
+**/node_modules/
+**/package-lock.json
 **/dist/
 **/build/
+frontend/.env*
+backend/.env
 
+#local_only
+py_server/
+test/
 
-# Docker
-*.tar  # Saved Docker images
+# Python cache & outputs
+**/__pycache__/
+*.pyc
+*.pyo
+**/venv/
+**/outputs/
+**/output/
+*.mp3
+*.wav
+**/ffmpeg
+**/ffmpeg.exe
+
+*/scraping/*.json
+*/scraping/*.jsonl
+*/scraping/*.txt
+
+# Old containerization
+docker-compose.yml
+Dockerfile.prod
+nginx.conf
+supervisord.conf
+*.tar     

@@ -119,6 +119,7 @@ export function MobileProfileDropdown({
               <button
                 className="w-full flex items-center gap-4 p-4 rounded-lg hover:bg-red-500/10 active:bg-red-500/20 transition-colors group mt-1"
                 role="menuitem"
+                onClick={handleUserLogout}
               >
                 <div className="p-2 rounded-lg bg-slate-800 group-hover:bg-slate-700/50 transition-colors">
                   <LogOut className="w-6 h-6 text-red-500" />

@@ -19,7 +19,6 @@ import { useSocketContext } from "../uttils/socketContext";
 import { useAuth } from "../uttils/AuthContex";
 import { useLibrary } from "../uttils/LibraryContext";
 import { Link } from "react-router-dom";
-import { verify } from "crypto";
 // import { useLibrary } from "../uttils/LibraryContext";
 
 interface AudioPlayerPageProps {
@@ -48,26 +47,21 @@ export const AudioPlayerPage = ({
   const { user } = useAuth()
   const { getStreamKey, verifyStreamKey } = useLibrary()!
   const [lastChunkSentIndex, setLastChunkSentIndex] = useState(-1);
+  const [isFirstLoad, setIsFirstLoad] = useState(true)
 
-  const { connect, isConnected, sendMessage, messages, socketRef, audio: socketAudioChunks } = useSocketContext()
+  const { connect, isConnected, sendMessage, messages, startJob, socketRef, audio: socketAudioChunks } = useSocketContext()
 
 
   useEffect(() => {
     const initAuthAndSocket = async () => {
       try {
-        console.log("AudioPlayerPage: Fetching streamKey...");
         const token = await getStreamKey() // Assuming this returns { token: string | null }
 
         if (!token) {
-          console.error("No token available – auth failed");
           return;
         }
-
-        console.log("StreamKey fetched:", token);
-
         if (user?.id) {
           if (await verifyStreamKey(token, user.id)) {
-            console.log("StreamKey verified successfully");
             setStreamKey(token);
           }
         }
@@ -81,26 +75,31 @@ export const AudioPlayerPage = ({
   }, []); // Run once on mount
 
   useEffect(() => {
-    console.log("attempting to connect socket, isConnected:", isConnected, "streamKey:", streamKey, "user:", user);
-    if (!isConnected && streamKey && user) {
-      console.log("Connecting to socket with streamKey:", streamKey, "and userId:", user.id);
-      connect(streamKey, user.id);
-    }
+    console.log("can connect to stream ", (!isConnected && streamKey && user && isFirstLoad))
+    const start = async () => {
+      if (!isConnected && streamKey && user && isFirstLoad) {
+        console.log("Connecting to socket with streamKey:", streamKey, "and userId:", user.id);
+        setIsFirstLoad(false)
+        const id = await startJob(streamKey, user.id, book.bookURL, chapter.toString())
+        if (id) {
+          connect(id)
+        }
+      }
+      // connect(streamKey, user.id, book.bookURL, chapter.toString());
 
-    if (isConnected && streamKey && user) {
-      handleSendMessagePlay();
     }
-  }, [streamKey, isConnected, user]);
+    start()
+  }, [streamKey, isConnected, user, isFirstLoad]);
 
   useEffect(() => {
     if (!book && !chapter) {
       // navigate("/")
       return
     }
-    console.log("AudioPlayerPage loaded with book:", book, "chapter:", chapter)
     const newKey = `${book.id || 'unknown'}-${chapter || '0'}`;
     console.log(`Chapter switched – forcing Player re-mount with new key: ${newKey}`);
     setPlayerKey(newKey);
+    setIsFirstLoad(true)
     setPlaybackSpeed(book.speed)
     setLastChunkSentIndex(-1);
     const currentChapter = {
@@ -118,7 +117,7 @@ export const AudioPlayerPage = ({
 
   useEffect(() => {
     if (messages && messages.length > 0 && !chapterInfo) {
-      let info = messages.find((m) => m.type === "audio-info")
+      let info = messages.find((m) => m.status === "audio-info")
       if (info) {
         setChapterInfo(info)
       }
@@ -127,11 +126,11 @@ export const AudioPlayerPage = ({
   }, [messages])
 
   useEffect(() => {
-    if (socketAudioChunks.length > 0 && !audioLoaded) {
+    if (socketAudioChunks.length > 2 && !audioLoaded) {
       setIsPlaying(true);
       setAudioLoaded(true);
     }
-  }, [socketAudioChunks])
+  }, [socketAudioChunks, audioLoaded])
 
 
   const handlePlayerRequestsMoreData = useCallback(() => {
@@ -146,12 +145,10 @@ export const AudioPlayerPage = ({
     if (socketAudioChunks.length > lastChunkSentIndex + 1) {
       const nextChunkIndex = lastChunkSentIndex + 1;
       const chunkToSend = socketAudioChunks[nextChunkIndex];
-
       // Ensure the Player ref is available and it has the method to process chunks
       if (chunkToSend && playerRef.current && playerRef.current.processIncomingChunk) {
         playerRef.current.processIncomingChunk(chunkToSend); // Send chunk to Player
         setLastChunkSentIndex(nextChunkIndex); // Update the index
-        console.log(`AudioPlayerPage: Sent chunk index ${nextChunkIndex} to Player.`);
       }
     } else {
       console.log(`AudioPlayerPage: No new chunks from socket (${socketAudioChunks.length}) yet. Last sent: ${lastChunkSentIndex}`);
@@ -160,16 +157,15 @@ export const AudioPlayerPage = ({
 
   useEffect(() => {
     // Connect to the socket when the component mounts if not already connected
-    if (!isConnected) {
-      return
-    }
+    if (!isPlaying && !playerRef.current?.isAwaitingMoreData()) return;
+
     const feederInterval = setInterval(() => {
       if (isConnected && playerRef.current?.isAwaitingMoreData(), isPlaying) {
         handlePlayerRequestsMoreData();
       }
     }, 100);
     return () => clearInterval(feederInterval);
-  }, [isConnected, handlePlayerRequestsMoreData, connect]);
+  }, [isConnected, handlePlayerRequestsMoreData]);
 
   const handleGetCurrentChapterAudio = async (url: string) => {
     try {
@@ -231,11 +227,6 @@ export const AudioPlayerPage = ({
     setPlaybackSpeed(speed);
     setShowSpeedMenu(false);
   }
-  const handleSendMessagePlay = () => {
-    // sendMessage("play https://novelbin.me/novel-book/soul-emperor-martial-god 1");
-    sendMessage(`play ${book.bookURL} ${chapter}`);
-  };
-
 
 
 
@@ -277,7 +268,7 @@ export const AudioPlayerPage = ({
       {showText && (
         <div className="bg-gray-800 rounded-lg p-4 mb-8 h-80 overflow-y-auto scrollbar-thin resize scrollbar-track-gray-700 scrollbar-thumb-gray-600">
           <p className="text-gray-300 hyphens-auto text-2xl leading-9">
-            {chapterInfo?.message.text || "loading.."}
+            {chapterInfo?.text || "loading.."}
           </p>
         </div>
       )}
@@ -293,7 +284,7 @@ export const AudioPlayerPage = ({
               playSpeed={playbackSpeed}
               loading={audioLoaded}
               onRequestMoreData={handlePlayerRequestsMoreData}
-              duration={chapterInfo?.message.duration || 0}
+              duration={chapterInfo?.duration || 0}
             />
           )
             : (<div className="flex justify-center items-center h-24">

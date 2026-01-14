@@ -1,22 +1,21 @@
-import { useState, useRef, useCallback } from 'react'
+import axios from 'axios'
+import { body } from 'framer-motion/client'
+import { useState, useRef, useCallback, useEffect } from 'react'
 
-const DEFAULT_WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:12345'
+const DEFAULT_STREAM_URL =
+  import.meta.env.VITE_API_STREAM_URL || 'http://localhost:5000/stream'
 
-// Vite sets import.meta.env.DEV automatically (true in dev, false in build/prod)
 const isDev = import.meta.env.DEV
 
-let wsUrl: string
+let streamUrl: string
 
 if (isDev) {
-  wsUrl = DEFAULT_WS_URL
+  streamUrl = DEFAULT_STREAM_URL
 } else {
-  // Prod: relative through nginx proxy
-  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-  wsUrl = `${protocol}//${window.location.host}/ws`
+  streamUrl = DEFAULT_STREAM_URL
 }
-
-export const useSocket = (url: string = wsUrl) => {
-  const socketRef = useRef<WebSocket | null>(null)
+export const useSocket = (url: string = streamUrl) => {
+  const eventSourceRef = useRef<EventSource | null>(null)
 
   const [messages, setMessages] = useState<any[]>([])
   const [audio, setAudio] = useState<ArrayBuffer[]>([])
@@ -27,72 +26,171 @@ export const useSocket = (url: string = wsUrl) => {
     user_id: string | null
   }>()
 
+  const startJob = useCallback(
+    async (
+      key: string,
+      user_id: string,
+      book_url: string,
+      chapter_nr: string
+    ) => {
+      console.log('starting Job')
+
+      const API_KEY: string = import.meta.env.VITE_STREAM_API_KEY
+      setData({ key, user_id })
+      if (!API_KEY) {
+        console.error('No API KEY FOUND')
+        return
+      }
+
+      try {
+        const res = await axios.post(
+          `${url}/run`,
+          {
+            input: {
+              book_url,
+              chapter_nr,
+            },
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${API_KEY}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        )
+        if (res) {
+          console.log('got id', res.data.id)
+          return res.data.id
+        }
+      } catch (error) {
+        console.log(error)
+      }
+    },
+    []
+  )
   const connect = useCallback(
-    (key: string, user_id: string) => {
-      if (socketRef.current) {
-        socketRef.current.close()
+    async (jobId: string) => {
+      if (!jobId) {
+        console.error('No jobId')
+        return
       }
 
-      const ws = new WebSocket(url)
-
-      ws.onopen = () => {
-        console.log('WebSocket connected')
-        socketRef.current = ws
-        setIsConnected(true)
-        setData({ key, user_id })
-        sendMessage(`${key},${user_id}`)
+      const API_KEY = import.meta.env.VITE_STREAM_API_KEY
+      if (!API_KEY) {
+        console.error('No API key')
+        return
       }
 
-      ws.onclose = () => {
-        console.log('WebSocket disconnected')
-        setIsConnected(false)
-      }
+      console.log(`Starting stream polling for job ${jobId}`)
 
-      ws.onerror = (err) => {
-        console.error('WebSocket error:', err)
-        setError(err as any)
-      }
+      let isPolling = true
+      let lastProcessedIndex = 0
 
-      ws.onmessage = (event) => {
-        try {
-          const obj = JSON.parse(event.data)
+      const poll = async () => {
+        while (isPolling) {
+          try {
+            const res = await fetch(`${url}/stream/${jobId}`, {
+              method: 'GET',
+              headers: {
+                Authorization: `Bearer ${API_KEY}`,
+              },
+            })
 
-          if (obj.type === 'audio') {
-            const base64 = obj.message.audio_bytes
-            const binaryString = atob(base64)
-            const buffer = new Uint8Array(binaryString.length)
-
-            for (let i = 0; i < binaryString.length; i++) {
-              buffer[i] = binaryString.charCodeAt(i)
+            if (!res.ok) {
+              throw new Error(`Poll failed: ${res.status} ${await res.text()}`)
             }
 
-            setAudio((prev) => [...prev, buffer.buffer])
-            console.log('Received audio chunk', buffer.buffer)
-          } else {
-            console.log('Received message:', obj)
-            setMessages((prev) => [...prev, obj])
+            const data = await res.json()
+
+            console.log('Poll response:', data)
+
+            if (data.stream && Array.isArray(data.stream)) {
+              data.stream.forEach((item: { output: string }) => {
+                try {
+                  // Clean the output string
+                  const cleaned = item.output.trim().replace(/\n$/, '')
+                  const obj = JSON.parse(cleaned)
+
+                  switch (obj.status) {
+                    case 'chunk':
+                      if (obj.audio_bytes) {
+                        const binaryString = atob(obj.audio_bytes)
+                        const bytes = new Uint8Array(binaryString.length)
+                        for (let i = 0; i < binaryString.length; i++) {
+                          bytes[i] = binaryString.charCodeAt(i)
+                        }
+                        setAudio((prev) => [...prev, bytes.buffer])
+                        console.log(
+                          'Added audio chunk | total now:',
+                          audio.length + 1
+                        )
+                      }
+                      break
+
+                    case 'error':
+                      console.error('TTS error:', obj.message)
+                      setError(new Error(obj.message || 'Generation error'))
+                      isPolling = false
+                      break
+
+                    default:
+                      // started, audio-info, complete, etc.
+                      console.log(`Status update: ${obj.status}`, obj)
+                      setMessages((prev) => [...prev, obj])
+                      break
+                  }
+
+                  // Optional early stop if complete appears
+                  if (obj.status === 'complete') {
+                    isPolling = false
+                    console.log('Complete inside chunks → stopping')
+                  }
+                } catch (e) {
+                  console.error('Parse failed for output:', item.output, e)
+                }
+              })
+            }
+
+            // Still stop on overall COMPLETED
+            if (data.status === 'COMPLETED') {
+              console.log('Job COMPLETED → stopping poll')
+              isPolling = false
+              setIsConnected(false)
+            }
+
+            setIsConnected(true)
+          } catch (err) {
+            console.error('Polling error:', err)
+            setError(err as any)
+            isPolling = false
+            setIsConnected(false)
           }
-        } catch (e) {
-          console.error('Message parse error:', e)
+
+          // Poll interval – 600-1000ms is good for TTS chunks
+          await new Promise((r) => setTimeout(r, 800))
         }
       }
 
-      socketRef.current = ws
+      poll()
+
+      return () => {
+        isPolling = false
+      }
     },
     [url]
   )
 
   const disconnect = useCallback(() => {
-    console.log('Disconnecting socket')
-    const sock = socketRef.current
+    console.log('Disconnecting SSE')
+    const source = eventSourceRef.current
 
-    if (!sock) {
-      console.log('No active socket to close')
+    if (!source) {
+      console.log('No active SSE to close')
       return
     }
 
-    sock.close()
-    socketRef.current = null
+    source.close()
+    eventSourceRef.current = null
 
     setIsConnected(false)
     setMessages([])
@@ -104,32 +202,26 @@ export const useSocket = (url: string = wsUrl) => {
   }, [])
 
   const sendMessage = useCallback((message: any) => {
-    const sock = socketRef.current
-
-    if (!sock || sock.readyState !== WebSocket.OPEN) {
-      setError(new Error('WebSocket not connected'))
-      return
-    }
-
-    try {
-      const msg =
-        typeof message === 'object' ? JSON.stringify(message) : message
-      sock.send(msg)
-    } catch (err) {
-      console.error('Send error:', err)
-      setError(err instanceof Error ? err : new Error(String(err)))
-    }
+    console.warn('sendMessage not supported in SSE mode (one-way stream)')
+    // If you need to send more commands later, add separate POST endpoints
   }, [])
+
+  useEffect(() => {
+    return () => {
+      disconnect()
+    }
+  }, [disconnect])
 
   return {
     connect,
     disconnect,
     sendMessage,
     messages,
+    startJob,
     clearAudioBuffer,
     audio,
     isConnected,
-    socketRef,
+    socketRef: eventSourceRef,
     error,
     data,
   }

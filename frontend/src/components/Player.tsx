@@ -142,7 +142,6 @@ const Player = forwardRef<PlayerCompRef, Props>(({ key, isPlaying, duration, set
     try {
       const chunkToAppend = internalAppendQueue[0];
       sourceBuffer.appendBuffer(chunkToAppend);
-      console.log('Player: Appending chunk:', chunkToAppend.byteLength, 'bytes');
       setInternalAppendQueue(prevQueue => prevQueue.slice(1)); // Remove from queue after starting append
     } catch (error) {
       console.error('Player: Error appending buffer:', error);
@@ -157,7 +156,7 @@ const Player = forwardRef<PlayerCompRef, Props>(({ key, isPlaying, duration, set
   }, [internalAppendQueue, isSourceOpen, processAppendQueue]);
 
   const handleSourceBufferUpdateEnd = useCallback(() => {
-    console.log('Player: SourceBuffer update ended.');
+    // console.log('Player: SourceBuffer update ended.');
     // Immediately try to append the next chunk if there's more in the internal queue
     processAppendQueue();
 
@@ -249,6 +248,7 @@ const Player = forwardRef<PlayerCompRef, Props>(({ key, isPlaying, duration, set
 
       const TARGET_BUFFER_SECONDS = 5;
       // Player is awaiting more data if buffer is low AND internal queue is also low
+      // console.log(`Player: isAwaitingMoreData check - bufferedAhead: ${bufferedAhead.toFixed(2)}s, internalQueueLength: ${internalAppendQueue.length}`);
       return bufferedAhead < TARGET_BUFFER_SECONDS && internalAppendQueue.length < 2;
     },
     setPlaybackRate: (speed) => {

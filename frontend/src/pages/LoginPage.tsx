@@ -68,12 +68,12 @@ export const LoginPage = () => {
             Login
           </button>
         </form>
-        <p className="mt-4 text-center text-gray-400">
+        {/* <p className="mt-4 text-center text-gray-400">
           Don't have an account?{" "}
           <Link to="/signup" className="text-purple-500 hover:text-purple-400">
             Sign up
           </Link>
-        </p>
+        </p> */}
       </div>
     </div>;
 };

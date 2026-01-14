@@ -7,10 +7,12 @@ import { list } from "postcss";
 import { useAuth } from "./AuthContex";
 import { promises } from "dns";
 
-const isDev = import.meta.env.DEV;
-const url = isDev
-  ? (import.meta.env.VITE_API_BASE_URL + "/lib" || 'http://localhost:8001')
-  : '' + "/api/lib";
+// const isDev = import.meta.env.DEV;
+// const url = isDev
+//   ? (import.meta.env.VITE_API_BASE_URL + "/lib" || 'http://localhost:8001')
+//   : '' + "/api/lib";
+
+const url = import.meta.env.VITE_API_BASE_URL || "http://localhost:8001"
 
 interface LibraryType {
   books: Book[]

@@ -5,12 +5,12 @@ import Cookies from "js-cookie";
 import {UserType} from "../types"
 
 
-const isDev = import.meta.env.DEV;
-const url = isDev 
-  ? (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001') 
-  : '' + "/api";
+// const isDev = import.meta.env.DEV;
+// const url = isDev 
+//   ? (import.meta.env.VITE_API_BASE_URL || 'http://localhost:8001') 
+//   : '' + "/api";
   
-  
+const url = import.meta.env.VITE_API_BASE_URL || "http://localhost:8001"
 
 console.log("API Base URL:", url);
 

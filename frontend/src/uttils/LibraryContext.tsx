@@ -12,7 +12,8 @@ import { promises } from "dns";
 //   ? (import.meta.env.VITE_API_BASE_URL + "/lib" || 'http://localhost:8001')
 //   : '' + "/api/lib";
 
-const url = import.meta.env.VITE_API_BASE_URL || "http://localhost:8001"
+const url = (import.meta.env.VITE_API_BASE_URL || "http://localhost:8001") + '/lib'
+
 
 interface LibraryType {
   books: Book[]

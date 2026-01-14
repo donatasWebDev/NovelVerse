@@ -16,21 +16,38 @@ const app = express();
 const server = createServer(app);
 const PORT = process.env.BACKEND_PORT || 5000;
 
-const corsOptions = {
-  origin: ["http://localhost:5173","http://192.168.0.242:5173"],
-  methods: ["GET", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  credentials: true
-};;
+const allowedOrigins = [
+  'https://novelverse.cv',
+  'https://www.novelverse.cv',
+  'https://novel-verse-three.vercel.app',
+  'http://localhost:5173'
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ['GET', 'POST', 'OPTIONS', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+  optionsSuccessStatus: 204 // for old browsers
+}));
+
+// preflight OPTIONS globally (important!)
+app.options('*', cors());
 
 app.use(express.json({ limit: "100mb" })); 
 app.use(express.urlencoded({ limit: "100mb", extended: true }));
 
 
-  app.use(cors(corsOptions));
-  server.listen(PORT, () => {
-    console.log(`server running at localhost:${PORT}`);
-  });
+server.listen(PORT, () => {
+  console.log(`server running at localhost:${PORT}`);
+});
   
 // app.use(bodyParser.json());
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {

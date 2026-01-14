@@ -1,0 +1,52 @@
+# Python virtual environments
+venv/
+.env/
+.vnev/              # catch your typo variant too, just in case
+
+# Python cache & temp files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.pyd
+
+# Local/testing files
+local_test.py
+test_*.py
+tests/
+debug/
+*.log
+*.local.*
+
+# Binaries & dev tools you don't need in container
+ffmpeg.exe          # local Windows binary – container uses linux ffmpeg
+chromedriver
+chromedriver.exe
+geckodriver
+msedgedriver.exe
+
+# Editor/IDE junk
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Build & dist artifacts
+dist/
+build/
+*.egg-info/
+*.egg
+
+# Large files you don't want copied
+*.mp3
+*.wav
+*.m4a
+*.pdf
+*.zip
+
+# Secrets (never commit anyway, but good to be safe)
+.env
+.env.*

@@ -63,6 +63,11 @@ const registerUser = async (req: AuthRequest, res: Response) => {
 const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
+
+    if (!email || !password ) {
+      res.status(400).json({ message: 'No email or password' });
+      return
+    }
     const user = await prisma.user.findUnique(
       { where: { email } }
     );

@@ -2,7 +2,7 @@ import { ReactNode, createContext, useContext, useEffect, useState, useMemo } fr
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import Cookies from "js-cookie";
-import {UserType} from "../types"
+import {UserType, LoginInfo} from "../types"
 
 
 // const isDev = import.meta.env.DEV;
@@ -18,7 +18,7 @@ console.log("API Base URL:", url);
 interface AuthContextType {
   user: UserType | null;
   loading: boolean;
-  handleLogin: (loginInfo: { email: string; password: string }) => Promise<boolean | undefined>;
+  handleLogin: (loginInfo: LoginInfo) => Promise<any | undefined>;
   handleRegister: (registerInfo: {
     email: string;
     username: string;
@@ -93,12 +93,12 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   const handleLogin = async (
-    loginInfo: { email: string; password: string } // Type for login info
+    loginInfo: LoginInfo // Type for login info
   ) => {
     try {
       const apiRes = await axios.post(`${url}/user/login`, {
-        email: loginInfo.email,
-        password: loginInfo.password,
+        email: loginInfo.email.text,
+        password: loginInfo.password.text,
       });
 
       // if (apiRes.data.message.includes("notverified")) {
@@ -118,10 +118,11 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         navigate("/");
         setUser(userData);
         console.log(userData)
+        return
       }
     } catch (err) {
       console.log("error: ", err);
-      return true;
+      return  err
     }
   };
   const handleRegister = async (registerInfo: {

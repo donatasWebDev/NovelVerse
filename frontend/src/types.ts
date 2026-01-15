@@ -28,3 +28,14 @@ export interface UserType {
     speed: number;
     isPlaying: boolean;
   }
+
+  export interface LoginInfo {
+    email: {
+      text: string;
+      err: string;
+    };
+    password: {
+      text: string;
+      err: string;
+    };
+  }

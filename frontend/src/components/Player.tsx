@@ -11,6 +11,8 @@ interface Props {
   loading: boolean
   onRequestMoreData: () => void; // Callback to parent to request more data
   duration: number
+  volume: number;
+  isMuted: boolean;
 }
 
 export interface PlayerCompRef {
@@ -21,7 +23,7 @@ export interface PlayerCompRef {
   isAwaitingMoreData: () => boolean; // New method for parent to query buffer status
 }
 
-const Player = forwardRef<PlayerCompRef, Props>(({ key, isPlaying, duration, setterIsPlaying, playSpeed, loading, onRequestMoreData }, ref) => {
+const Player = forwardRef<PlayerCompRef, Props>(({ key, isPlaying, duration, setterIsPlaying, playSpeed, loading, onRequestMoreData, volume, isMuted }, ref) => {
 
   const mediaSourceRef = useRef<MediaSource | null>(null);
   const sourceBufferRef = useRef<SourceBuffer | null>(null);
@@ -79,6 +81,15 @@ const Player = forwardRef<PlayerCompRef, Props>(({ key, isPlaying, duration, set
     };
   }, []);
 
+
+  // Volume Controls
+  useEffect(() => {
+    if (!audioRef.current) return;
+
+    const v = Math.max(0, Math.min(1, volume)); // clamp just in case
+    audioRef.current.volume = isMuted ? 0 : v;
+    audioRef.current.muted = isMuted;
+  }, [volume, isMuted]);
 
 
 

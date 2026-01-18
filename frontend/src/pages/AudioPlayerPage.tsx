@@ -11,6 +11,7 @@ import {
   SkipForward,
   SkipBack,
   X,
+  Flashlight,
 } from "lucide-react";
 // import { useNavigate } from "react-router-dom";
 import { ChDropDown } from "../components/chDropDown"
@@ -19,6 +20,8 @@ import { useSocketContext } from "../uttils/socketContext";
 import { useAuth } from "../uttils/AuthContex";
 import { useLibrary } from "../uttils/LibraryContext";
 import { Link } from "react-router-dom";
+import { a, audio } from "framer-motion/client";
+import { VolumeButton } from "../components/volumeBtn"
 // import { useLibrary } from "../uttils/LibraryContext";
 
 interface AudioPlayerPageProps {
@@ -48,8 +51,19 @@ export const AudioPlayerPage = ({
   const { getStreamKey, verifyStreamKey } = useLibrary()!
   const [lastChunkSentIndex, setLastChunkSentIndex] = useState(-1);
   const [isFirstLoad, setIsFirstLoad] = useState(true)
+  const [volume, setVolume] = useState(0.8);
+  const [isMuted, setIsMuted] = useState(false);
+  const [showVolumeMenu, setShowVolumeMenu] = useState(false)
 
-  const { connect, isConnected, sendMessage, messages, startJob, socketRef, audio: socketAudioChunks } = useSocketContext()
+
+
+  const { connect, isConnected, messages, startJob, audio: socketAudioChunks, disconnect } = useSocketContext()
+
+  const safetyTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [retries, setRetries] = useState(0);
+  const MAX_RETRIES = 2; // e.g. initial + 2 retries
+  const QUEUE_SAFETY_TIMEOUT = 20 * 1000; // 20s — tune to ~1.5× your typical worst-case delay
+
 
 
   useEffect(() => {
@@ -80,10 +94,7 @@ export const AudioPlayerPage = ({
       if (!isConnected && streamKey && user && isFirstLoad) {
         console.log("Connecting to socket with streamKey:", streamKey, "and userId:", user.id);
         setIsFirstLoad(false)
-        const id = await startJob(streamKey, user.id, book.bookURL, chapter.toString())
-        if (id) {
-          connect(id)
-        }
+        startJobWithSafetyNet(streamKey, user.id, book.bookURL, chapter.toString())
       }
       // connect(streamKey, user.id, book.bookURL, chapter.toString());
 
@@ -116,12 +127,24 @@ export const AudioPlayerPage = ({
   }, [chapter, book])
 
   useEffect(() => {
+
+    console.log("messages Updated", messages)
+
+
     if (messages && messages.length > 0 && !chapterInfo) {
       let info = messages.find((m) => m.status === "audio-info")
       if (info) {
         setChapterInfo(info)
       }
+    }
 
+    if (messages?.some(m => m.status === "started") && messages.length > 0) {
+      if (safetyTimerRef.current) {
+        console.log("Progress detected — clearing safety timer");
+        clearTimeout(safetyTimerRef.current);
+        safetyTimerRef.current = null;
+        setRetries(0);
+      }
     }
   }, [messages])
 
@@ -130,8 +153,35 @@ export const AudioPlayerPage = ({
       setIsPlaying(true);
       setAudioLoaded(true);
     }
-  }, [socketAudioChunks, audioLoaded])
+  }, [socketAudioChunks])
 
+
+  const startJobWithSafetyNet = async (streamKey: string, userId: string, bookURL: string, chapter: string) => {
+    try {
+      const newJobId = await startJob(streamKey, userId, bookURL, chapter);
+      connect(newJobId);
+
+      // Single timeout: if no progress after X seconds, cancel & retry once
+      safetyTimerRef.current = setTimeout(() => {
+        console.log(`No progress after ${QUEUE_SAFETY_TIMEOUT / 1000}s — cancelling & retrying`);
+
+        if (newJobId) {
+          disconnect(newJobId);
+        }
+
+        if (retries < MAX_RETRIES) {
+          startJobWithSafetyNet(streamKey, userId, bookURL, chapter); // recursive call, but only once or twice max
+          setRetries(prev => prev + 1)
+        }
+
+
+      }, QUEUE_SAFETY_TIMEOUT);
+    }
+    catch (err) {
+      console.log(err)
+    }
+
+  };
 
   const handlePlayerRequestsMoreData = useCallback(() => {
     // Check if there are new chunks available in socketAudioChunks
@@ -170,11 +220,6 @@ export const AudioPlayerPage = ({
   const handleGetCurrentChapterAudio = async (url: string) => {
     try {
       if (!url || url === "" || url === undefined) return
-      // const response = await getChpaterAudioCurrent(book, url)
-      // if (response) {
-      //   setLoading(false);
-      //   return response
-      // }
       setLoading(false);
     } catch (error) {
       console.error("Error getting audio", error);
@@ -227,6 +272,12 @@ export const AudioPlayerPage = ({
     setPlaybackSpeed(speed);
     setShowSpeedMenu(false);
   }
+  const handleVolumeChange = (newVol: number) => {
+    setVolume(newVol);
+  };
+  const toggleMute = () => {
+    setIsMuted(prev => !prev);
+  };
 
 
 
@@ -273,7 +324,12 @@ export const AudioPlayerPage = ({
         </div>
       )}
       {/* Audio Controls */}
-      <div className="">
+      <div className="flex flex-col items-center"
+        onMouseLeave={() => {
+          console.log("leaving controls")
+          setShowVolumeMenu(false)
+        }}
+      >
         {
           chapterNr && !loading ? (
             <Player
@@ -285,6 +341,8 @@ export const AudioPlayerPage = ({
               loading={audioLoaded}
               onRequestMoreData={handlePlayerRequestsMoreData}
               duration={chapterInfo?.duration || 0}
+              volume={volume}
+              isMuted={isMuted}
             />
           )
             : (<div className="flex justify-center items-center h-24">
@@ -293,7 +351,7 @@ export const AudioPlayerPage = ({
             )
         }
         {/* Main Controls */}
-        <div className="flex items-center justify-center gap-6 mb-4">
+        <div className=" w-full flex justify-center items-center gap-6 mb-4">
           {chapter != 1 ?
             <Link className="text-gray-400 hover:text-gray-300"
               to={`/play/${book.id}/${chapter - 1}`}
@@ -308,16 +366,26 @@ export const AudioPlayerPage = ({
           >
             <Undo className="w-6 h-6" />
           </button>
-          <button
-            className="w-16 h-16 rounded-full bg-purple-600 hover:bg-purple-700 flex items-center justify-center"
-            onClick={togglePlay}
-          >
-            {isPlaying ? (
-              <Pause className="w-8 h-8 text-white" />
+          {
+            audioLoaded ? (
+              <button
+                className="w-16 h-16 rounded-full bg-purple-600 hover:bg-purple-700 flex items-center justify-center"
+                onClick={togglePlay}
+              >
+                {isPlaying ? (
+                  <Pause className="w-8 h-8 text-white" />
+                ) : (
+                  <Play className="w-8 h-8 text-white ml-1" />
+                )}
+              </button>
             ) : (
-              <Play className="w-8 h-8 text-white ml-1" />
-            )}
-          </button>
+              <button
+                className="w-16 h-16 rounded-full bg-gray-600 cursor-default flex items-center justify-center"
+              >
+                <Pause className="w-8 h-8 text-white" />
+              </button>
+            )
+          }
           <button className="text-gray-400 hover:text-gray-300"
             onClick={handleSkipForward}
           >
@@ -329,8 +397,8 @@ export const AudioPlayerPage = ({
           </Link> : <div className="w-6 h-6"></div>}
         </div>
         {/* Speed Control */}
-        <div className="flex justify-center">
-          <div className="relative">
+        <div className="flex w-full gap-3">
+          <div className="relative flex items-center">
             <button
               className="px-3 py-1 text-sm text-gray-300 bg-gray-700 rounded-full hover:bg-gray-600"
               onClick={handleShowSpeedMenu}
@@ -350,6 +418,21 @@ export const AudioPlayerPage = ({
                 ))}
               </div>
             )}
+          </div>
+          <div
+            className="flex w-max justify-end"
+            onMouseEnter={() => {
+              console.log("leaving controls")
+              setShowVolumeMenu(true)
+            }}>
+            <VolumeButton
+              ref={playerRef}
+              volume={isMuted ? 0 : volume}
+              isMuted={isMuted}
+              canShowSlider={showVolumeMenu}
+              onVolumeChange={handleVolumeChange}
+              onToggleMute={toggleMute}
+            />
           </div>
         </div>
       </div>

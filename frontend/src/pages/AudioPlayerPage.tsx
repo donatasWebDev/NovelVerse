@@ -21,7 +21,7 @@ import { useAuth } from "../uttils/AuthContex";
 import { useLibrary } from "../uttils/LibraryContext";
 import { Link } from "react-router-dom";
 import { a, audio } from "framer-motion/client";
-import { VolumeButton } from "../components/volumeBtn"
+import { VolumeButton } from "../components/VolumeBtn"
 // import { useLibrary } from "../uttils/LibraryContext";
 
 interface AudioPlayerPageProps {

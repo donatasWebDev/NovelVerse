@@ -15,8 +15,7 @@ if (isDev) {
   streamUrl = DEFAULT_STREAM_URL
 }
 export const useSocket = (url: string = streamUrl) => {
-  const eventSourceRef = useRef<EventSource | null>(null)
-
+  const [jobId, setJobId] = useState<string>()
   const [messages, setMessages] = useState<any[]>([])
   const [audio, setAudio] = useState<ArrayBuffer[]>([])
   const [isConnected, setIsConnected] = useState(false)
@@ -25,6 +24,13 @@ export const useSocket = (url: string = streamUrl) => {
     key: string | null
     user_id: string | null
   }>()
+  const timeoutDelay = 8 * 1000 //8s
+
+  useEffect(() => {
+    const lastJobId = localStorage.getItem('jobID')
+    disconnect(lastJobId)
+    localStorage.removeItem('jobID')
+  }, [])
 
   const startJob = useCallback(
     async (
@@ -60,6 +66,7 @@ export const useSocket = (url: string = streamUrl) => {
         )
         if (res) {
           console.log('got id', res.data.id)
+          localStorage.setItem('jobID', res.data.id)
           return res.data.id
         }
       } catch (error) {
@@ -69,8 +76,8 @@ export const useSocket = (url: string = streamUrl) => {
     []
   )
   const connect = useCallback(
-    async (jobId: string) => {
-      if (!jobId) {
+    async (id: string) => {
+      if (!id) {
         console.error('No jobId')
         return
       }
@@ -81,15 +88,14 @@ export const useSocket = (url: string = streamUrl) => {
         return
       }
 
-      console.log(`Starting stream polling for job ${jobId}`)
+      console.log(`Starting stream polling for job ${id}`)
 
       let isPolling = true
-      let lastProcessedIndex = 0
 
       const poll = async () => {
         while (isPolling) {
           try {
-            const res = await fetch(`${url}/stream/${jobId}`, {
+            const res = await fetch(`${url}/stream/${id}`, {
               method: 'GET',
               headers: {
                 Authorization: `Bearer ${API_KEY}`,
@@ -102,7 +108,15 @@ export const useSocket = (url: string = streamUrl) => {
 
             const data = await res.json()
 
-            console.log('Poll response:', data)
+            console.log(`Poll response ${id}:`, data)
+
+            if (data.status === 'CANCELLED') {
+              console.log('Job CANCELLED → stopping poll')
+              isPolling = false
+              cleanupUI()
+              setIsConnected(false)
+              return
+            }
 
             if (data.stream && Array.isArray(data.stream)) {
               data.stream.forEach((item: { output: string }) => {
@@ -155,9 +169,10 @@ export const useSocket = (url: string = streamUrl) => {
             if (data.status === 'COMPLETED') {
               console.log('Job COMPLETED → stopping poll')
               isPolling = false
+              localStorage.removeItem('jobID')
               setIsConnected(false)
             }
-
+            setJobId(id)
             setIsConnected(true)
           } catch (err) {
             console.error('Polling error:', err)
@@ -180,18 +195,51 @@ export const useSocket = (url: string = streamUrl) => {
     [url]
   )
 
-  const disconnect = useCallback(() => {
-    console.log('Disconnecting SSE')
-    const source = eventSourceRef.current
+  const disconnect = useCallback(
+    (lastJobId?: string | null) => {
+      console.log('Disconnecting SSE')
 
-    if (!source) {
-      console.log('No active SSE to close')
-      return
-    }
+      const API_KEY = import.meta.env.VITE_STREAM_API_KEY
+      if (!API_KEY) {
+        console.error('No API key found')
+        return
+      }
 
-    source.close()
-    eventSourceRef.current = null
+      const targetJobId = lastJobId ?? jobId
 
+      if (!targetJobId) {
+        console.warn('No jobId available to cancel')
+        return
+      }
+
+      const cancelUrl = `${url}/cancel/${targetJobId}`
+
+      axios
+        .post(
+          cancelUrl,
+          {},
+          {
+            headers: {
+              Authorization: `Bearer ${API_KEY}`,
+            },
+          }
+        )
+        .then((response) => {
+          console.log('Cancel successful:', response.data)
+          cleanupUI()
+        })
+        .catch((error) => {
+          console.error(
+            'Cancel request failed:',
+            error.response?.data || error.message
+          )
+          cleanupUI()
+        })
+    },
+    [jobId]
+  )
+
+  const cleanupUI = useCallback(() => {
     setIsConnected(false)
     setMessages([])
     setAudio([])
@@ -221,7 +269,6 @@ export const useSocket = (url: string = streamUrl) => {
     clearAudioBuffer,
     audio,
     isConnected,
-    socketRef: eventSourceRef,
     error,
     data,
   }

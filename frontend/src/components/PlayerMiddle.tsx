@@ -1,4 +1,4 @@
-import React, { useEffect, useReducer, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useLibrary } from "../uttils/LibraryContext";
 import { useParams } from "react-router-dom";
 import { AudioPlayerPage } from "../pages/AudioPlayerPage";
@@ -8,41 +8,35 @@ export const PlayerMiddle = () => {
     const { p_id } = useParams();
     const { nr } = useParams();
     let chapter = nr
-    const { library, getCurrentBook, initializeAudioBook, getBookById } = useLibrary()
+    const {getCurrentBook, handleSetCurrentBook, getBookById } = useLibrary()!
     const [book, setBook] = useState<BookCurrent | null>(null);
     const [loading, setLoading] = useState(true);
 
 
     useEffect(() => {
-        hanldeInitializeAudioBook()
+        handleInitializeAudioBook()
     }, [])
 
 
-    const hanldeInitializeAudioBook = async () => {
-        let bookData = null
+    const handleInitializeAudioBook = async () => {
         let oldBook = getCurrentBook()
-
-        if (library && p_id !== "" && chapter !== "" && !isNaN(Number(chapter))) {
-            bookData = await getBookById(p_id);
-            if (!bookData) {
-                console.log("book not found in DB")
+        if (oldBook) {
+            setBook(oldBook)
+            setLoading(false)
+            return
+        }
+        if (p_id) {
+            const newBook: any = await getBookById(p_id)
+            if (!newBook) {
+                setLoading(false)
                 return
             }
-            if (oldBook && bookData && bookData.id === oldBook._id) {
-                console.log("old book found")
-                setLoading(false)
-                setBook(oldBook)
-            } else {
-                let book: BookCurrent = await initializeAudioBook(bookData, chapter)
-                setLoading(false)
-                setBook(book)
-            }
+            setBook(handleSetCurrentBook(newBook))
+            setLoading(false)
         }
     }
 
-
-    if (loading || !library) {
-        console.log("loading player middle", loading, library)
+    if (loading) {
         return <div className=" flex items-center justify-between px-4 py-3 bg-gray-800 border-b border-gray-700">
             <h1 className="text-xl font-bold text-gray-100">Loading..</h1>
         </div>;
@@ -56,7 +50,8 @@ export const PlayerMiddle = () => {
     if (!book) {
         console.log("no book found", setBook)
     }
+    
     return <div className=" flex items-center justify-between px-4 py-3 bg-gray-800 border-b border-gray-700">
         <h1 className="text-xl font-bold text-gray-100">Loading...</h1>
     </div>;
-};
+}

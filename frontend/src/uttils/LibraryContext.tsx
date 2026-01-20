@@ -30,9 +30,8 @@ interface LibraryContextType {
   streamKey: string | null;
   fetchLibrary: (page: number, q: string) => void;
   getBookById: (id: string) => Promise<Book | undefined>;
-  handleSetCurrentBook: (book: BookCurrent) => void;
+  handleSetCurrentBook: (book: Book) => BookCurrent;
   getCurrentBook: () => BookCurrent | null;
-  getChapterAudioCurrent: (book: BookCurrent, chapterURl: string) => Promise<string> | null,
   getStreamKey: () => Promise<string> | null,
   verifyStreamKey: (streamKey: string, id: string) => Promise<any> | null,
   toggleFavoriteBook: (id: string) => Promise<void>
@@ -136,12 +135,18 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
   }
 
-  const handleSetCurrentBook = (book: BookCurrent) => {
+  const handleSetCurrentBook = (book: Book) => {
+    const curBook: BookCurrent = {
+      ...book,
+      progress: 0,
+      speed: 1,
+      currentChapter: 1,
+      isPlaying: false,
+    }
     Cookies.set("currentBook", JSON.stringify(book));
     localStorage.setItem("currentBook", JSON.stringify(book));
-    setCurrentBook(book);
+    setCurrentBook(curBook);
     return book
-    // Cookies.set("currentBook", JSON.stringify(book));
   }
 
   const getCurrentBook = (): BookCurrent | null => {
@@ -157,40 +162,6 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return null;
   };
 
-  const getChapterAudioCurrent = async (book: BookCurrent, chapterURl: string) => {
-    try {
-      if (!book) return undefined
-      if (!book.chList || book.chList.length < 0) return undefined
-      const exists = book?.chList?.some(ch => 'chapterURL' in ch) ?? false;
-      if (!exists) return undefined
-
-      const token = Cookies.get("userToken");
-      if (!token) {
-        navigate("/login");
-        return undefined
-      }
-      const res = await axios.post(`${url}/get/ch/audio/`, { chUrl: chapterURl }, {
-        headers: {
-          Authorization: "Bearer " + token
-        }
-      })
-
-      if (res) {
-        if (res.data.audio) {
-          const newCurrentBook: BookCurrent = {
-            ...book,
-          }
-          handleSetCurrentBook(newCurrentBook)
-          console.log("axios got chpter audio")
-          return res.data.audio.text
-        }
-      }
-    }
-    catch (err) {
-      console.log(err);
-      return;
-    }
-  }
 
   const getStreamKey = async () => {
     try {
@@ -280,7 +251,6 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       getBookById,
       handleSetCurrentBook,
       getCurrentBook,
-      getChapterAudioCurrent,
       getStreamKey,
       toggleFavoriteBook,
       verifyStreamKey,

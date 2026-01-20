@@ -24,7 +24,6 @@ export const useSocket = (url: string = streamUrl) => {
     key: string | null
     user_id: string | null
   }>()
-  const timeoutDelay = 8 * 1000 //8s
 
   useEffect(() => {
     const lastJobId = localStorage.getItem('jobID')

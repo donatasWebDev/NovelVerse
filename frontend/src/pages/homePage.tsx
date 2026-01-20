@@ -3,7 +3,7 @@ import { AudioBookCard } from "../components/AudioBookCard";
 import { CategoryTabs } from "../components/CategoryTabs";
 import { ContinueReading } from "../components/ContinueReading";
 import { useLibrary } from "../uttils/LibraryContext";
-import { Book, BookCurrent } from "../types";
+import { Book, BookCurrent, FavoriteBook } from "../types";
 import { useAuth } from "../uttils/AuthContex";
 import { useNavigate } from "react-router-dom";
 import { get } from "http";
@@ -19,12 +19,13 @@ const categories = [
 ];
 
 export const HomePage = () => {
-  const { library, getCurrentBook, streamKey, fetchLibrary } = useLibrary()!; // Assumed library context
+  const { library, getCurrentBook, streamKey, fetchLibrary, handleGetFavoriteBooks } = useLibrary()!; // Assumed library context
   // const {connect, isConnected} = useSocket();
   const [books, setBooks] = useState<Book[]>([]);
   const [bookCurrent, setBookCurrent] = useState<BookCurrent | null>(null)
   const [activeCategory, setActiveCategory] = useState("All Books");
   const [loading, setLoading] = useState(true); // Track loading state
+  const [favoriteBooks, setFavoriteBooks] = useState<Book[] | null >()
   const [page, setPage] = useState<number>(getCurrentPage());
   const [hasMore, setHasMore] = useState(true);
   const { user } = useAuth()!
@@ -33,6 +34,19 @@ export const HomePage = () => {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const navigate = useNavigate()
   const limit = 20
+
+  useEffect(() => {
+    const book = getCurrentBook();
+
+    if (!user) {
+      navigate("/login")
+    }
+    if (book) {
+      setBookCurrent(book);
+    }
+
+  }, []);
+
 
   useEffect(() => {
     if (library) {
@@ -49,18 +63,6 @@ export const HomePage = () => {
     console.log("Library", library)
   }, [library]); // Re-run effect when library changes
 
-  useEffect(() => {
-    const book = getCurrentBook();
-
-    if (!user) {
-      navigate("/login")
-    }
-    if (book) {
-      setBookCurrent(book);
-    }
-
-  }, []);
-
   // Reset on query change
   useEffect(() => {
     setPage(1);
@@ -72,6 +74,14 @@ export const HomePage = () => {
   const fetchBooks = async (reset = false) => {
     const currentPage = reset ? 1 : page;
     fetchLibrary(currentPage, encodeURIComponent(searchQuery));
+    const newFavoriteBooks = await handleGetFavoriteBooks()
+    if (newFavoriteBooks) {
+      const allBooks: Book[] = newFavoriteBooks.map(fav => fav.book)
+      console.log(allBooks)
+      setFavoriteBooks(allBooks)
+      return
+    }
+    setFavoriteBooks([])
 
     // If we got less than limit, no more to load
     if (!reset) setPage(prev => prev + 1);
@@ -138,7 +148,7 @@ export const HomePage = () => {
           // Normal pagination mode
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {books?.length === 0 ? (
+              {books?.length === 0  || !favoriteBooks ? (
                 <p className="text-gray-400">No books found.</p>
               ) : (
                 books.map((book: any, index: number) => (
@@ -153,6 +163,7 @@ export const HomePage = () => {
                     bookURL={book.bookURL}
                     isComplete={book.isComplete}
                     chList={book.chList}
+                    favoriteBooks={favoriteBooks}
                   />
                 ))
               )}
@@ -256,6 +267,7 @@ export const HomePage = () => {
                   bookURL={book.bookURL}
                   isComplete={book.isComplete}
                   chList={book.chList}
+                  favoriteBooks={favoriteBooks!}
                 />
               ))}
             </div>

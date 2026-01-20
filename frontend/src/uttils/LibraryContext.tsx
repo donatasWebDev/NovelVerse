@@ -2,7 +2,7 @@ import { ReactNode, createContext, useContext, useEffect, useState, useMemo, use
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import Cookies from 'js-cookie';
-import { Book, BookCurrent, UserType } from "../types";
+import { Book, BookCurrent, FavoriteBook } from "../types";
 import { list } from "postcss";
 import { useAuth } from "./AuthContex";
 import { promises } from "dns";
@@ -31,11 +31,12 @@ interface LibraryContextType {
   fetchLibrary: (page: number, q: string) => void;
   getBookById: (id: string) => Promise<Book | undefined>;
   handleSetCurrentBook: (book: BookCurrent) => void;
-  initializeAudioBook: (book: Book, currect_ch: String) => void
   getCurrentBook: () => BookCurrent | null;
   getChapterAudioCurrent: (book: BookCurrent, chapterURl: string) => Promise<string> | null,
   getStreamKey: () => Promise<string> | null,
   verifyStreamKey: (streamKey: string, id: string) => Promise<any> | null,
+  toggleFavoriteBook: (id: string) => Promise<void>
+  handleGetFavoriteBooks: () => Promise<[FavoriteBook]>
 }
 
 const LibraryContex = createContext<LibraryContextType | undefined>(undefined);
@@ -46,6 +47,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [loading, setLoading] = useState<boolean>(true);
   const [page, setPage] = useState<number>(1);
   const [streamKey, setStreamKey] = useState<string | null>(null)
+  const [favoriteBook, setFavoriteBooks] = useState<[FavoriteBook]>()
   const navigate = useNavigate();
   const { user } = useAuth()!
 
@@ -155,30 +157,6 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return null;
   };
 
-  const initializeAudioBook = async (book: Book, current_ch: String) => {
-    try {
-      const newCurrentBook: BookCurrent = {
-        ...book,
-        progress: 0,
-        currentChapter: Number(current_ch),
-        isPlaying: false,
-        speed: 1
-      }
-      const updatedLibrary = {
-        ...library,
-        books: (library?.books ?? []).map((b) => (b.id === book.id ? book : b)),
-      };
-      setLibrary(updatedLibrary)
-      handleSetCurrentBook(newCurrentBook)
-      return newCurrentBook;
-    }
-    catch (err) {
-      console.log(err);
-    }
-  }
-
-
-
   const getChapterAudioCurrent = async (book: BookCurrent, chapterURl: string) => {
     try {
       if (!book) return undefined
@@ -254,20 +232,59 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   }
 
+  const toggleFavoriteBook = async (id: String) => {
+    try {
+      const res = await axios.put(`${url}/toggle/favorite`, {
+        bookId: id
+      }, {
+        headers: {
+          Authorization: `Bearer ${user?.token}`
+        }
+      });
+      if (res.data) {
+        console.log(res.data)
+      }
+    } catch (err) {
+      console.log(err);
+    }
+  }
+  const handleGetFavoriteBooks = async () => {
+    try {
+      const res = await axios.get(`${url}/get/favorite`, {
+        headers: {
+          Authorization: `Bearer ${user?.token}`
+        }
+      });
+      if (res.data) {
+        console.log(res.data.favoriteBooks)
+        setFavoriteBooks(res.data.favoriteBooks)
+        return res.data.favoriteBooks
+      }
+      navigate("/")
+    } catch (err) {
+      console.log(err);
+    }
+  }
+
+
+
+
   const contextData: LibraryContextType = useMemo(
     () => ({
       library,
       loading,
       streamKey,
       currentBook,
+      favoriteBook,
       fetchLibrary,
       getBookById,
       handleSetCurrentBook,
-      initializeAudioBook,
       getCurrentBook,
       getChapterAudioCurrent,
       getStreamKey,
-      verifyStreamKey
+      toggleFavoriteBook,
+      verifyStreamKey,
+      handleGetFavoriteBooks
     }),
     [library, loading]
   );

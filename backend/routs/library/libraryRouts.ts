@@ -8,12 +8,16 @@ import {
   getBookInfo,
   getStreamKey,
   verifYStreamKey,
+  getFavoriteBooks,
+  toggleFavoriteBook,
 } from './libraryController';
 
 const router: Router = express.Router();
 
 router.post('/add/book', addBook);
 router.get('/get/books', getBookPage);
+router.put("/toggle/favorite", protect, toggleFavoriteBook)
+router.get("/get/favorite", protect, getFavoriteBooks)
 router.get('/get/book/:id', getBookInfo);
 router.get("/get/audio/key", protect, getStreamKey);
 router.post("/verify", verifYStreamKey)

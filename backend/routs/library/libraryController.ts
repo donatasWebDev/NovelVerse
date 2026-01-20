@@ -8,7 +8,7 @@ import path from 'path'
 import { format } from 'date-fns'
 import { request } from 'http'
 
-const pyServer = process.env.PY_SERVER_URL || "Test_env_value_pyserver";
+const pyServer = process.env.PY_SERVER_URL || 'Test_env_value_pyserver'
 
 interface AuthRequest extends Request {
   user?: User
@@ -18,24 +18,24 @@ const prisma = new PrismaClient()
 
 export const addBook = async (req: Request, res: Response) => {
   try {
-    console.log(req.body);
+    console.log(req.body)
     const bookData = {
       title: req.body.title,
-      author: req.body.author || "Unknown",
+      author: req.body.author || 'Unknown',
       bookURL: req.body.bookUrl,
       isComplete: req.body.isComplete || false,
       categoryList: req.body.category || [],
       numberOfChapters: req.body.numberOfChapters || 0,
       coverImg: req.body.coverImg || null,
       lastUpdated: req.body.lastUpdated || new Date().toISOString(), // Optional: add field if you want
-    };
-
-    if (!bookData.bookURL) {
-      res.status(400).json({ message: 'bookURL is required' });
-      return;
     }
 
-    console.log('Processing book:', bookData.title);
+    if (!bookData.bookURL) {
+      res.status(400).json({ message: 'bookURL is required' })
+      return
+    }
+
+    console.log('Processing book:', bookData.title)
 
     // UPSERT: Insert if new, update if exists (by unique bookURL)
     const book = await prisma.book.upsert({
@@ -50,19 +50,19 @@ export const addBook = async (req: Request, res: Response) => {
         lastUpdated: bookData.lastUpdated, // If you add this field to schema
       },
       create: bookData,
-    });
+    })
 
-    res.status(200).json({ message: 'Book added/updated', book });
+    res.status(200).json({ message: 'Book added/updated', book })
   } catch (error: any) {
-    console.error('Error upserting book:', error);
-    res.status(500).json({ message: error.message || 'Server error' });
+    console.error('Error upserting book:', error)
+    res.status(500).json({ message: error.message || 'Server error' })
   }
-};
+}
 
 export const getBookPage = async (req: Request, res: Response) => {
-  let page = Number(req.query.page) || 1;
-  const query = (req.query.q ?? "") as string;
-  console.log("Search query:", query)
+  let page = Number(req.query.page) || 1
+  const query = (req.query.q ?? '') as string
+  console.log('Search query:', query)
 
   // If not a valid positive integer → use page 1
   if (!Number.isInteger(page) || page < 1) {
@@ -73,7 +73,11 @@ export const getBookPage = async (req: Request, res: Response) => {
   const limit = 20
   skip = skip * limit
   try {
-    const books = await prisma.book.findMany({ skip: skip, take: limit, where: { title: { contains: query, mode: 'insensitive' } } })
+    const books = await prisma.book.findMany({
+      skip: skip,
+      take: limit,
+      where: { title: { contains: query, mode: 'insensitive' } },
+    })
 
     const totalBooks = await prisma.book.count()
     const totalPages = Math.ceil(totalBooks / limit)
@@ -116,116 +120,77 @@ export const getBookInfo = async (req: Request, res: Response) => {
   }
 }
 
-// export const bookAddChapters = async (req: Request, res: Response) => {
-//   // poulkates Chapters to a Book
-//   try {
-//     if (!req.params.bookId) {
-//       res.status(404).json({ message: 'Specification not found' })
-//       return
-//     }
-//     if (!req.body.nr) {
-//       res.status(404).json({ message: 'requset Body doe not have chapters nr' })
-//       return
-//     }
+export const toggleFavoriteBook = async (req: AuthRequest, res: Response) => {
+  try {
+    const { bookId } = req.body
+    if (!req.user?.id) {
+      res.status(401).json({ message: 'User is not authorized' })
+      return
+    }
+    if (!bookId) {
+      res.status(404).json({ message: 'Missing Parameter BookId' })
+      return
+    }
+    const existing = await prisma.favoriteBooks.count({
+      where: {
+        userId: req.user.id,
+        bookId,
+      },
+    })
 
-//     const book = await prisma.book.findUnique({
-//       where: {
-//         id: req.params.bookId,
-//       },
-//     })
-//     if (!book) {
-//       res.status(404).json({ message: 'Book not found' })
-//       return
-//     }
+    if (existing > 0) {
+      await prisma.favoriteBooks.delete({
+        where: {
+          userId_bookId: {
+            userId: req.user.id,
+            bookId,
+          },
+        },
+      })
+      res.status(201).json({ message: 'favorite books updated deleted old' })
+      return
+    }
+    const newFavorite = await prisma.favoriteBooks.create({
+      data: {
+        userId: req.user.id,
+        bookId: bookId,
+      },
+    })
+    res.status(201).json({
+      message: 'favorite books updated added new',
+      book: { newFavorite },
+    })
+    return
+  } catch (error: any) {
+    res.status(500).json({ message: error.message })
+  }
+}
 
-//     const chapters: Chapter[] = []
-//     const result = await axios.put(
-//       `${pyServer}/get/chapters`,
-//       { bookURL: book.bookURL + '#tab-chapters-title' },
-//       {
-//         responseType: 'json',
-//         maxContentLength: Infinity,
-//         maxBodyLength: Infinity,
-//       }
-//     )
-//     if (!result.data.ch_list) {
-//       res.status(404).json({ message: 'No chapters found' })
-//       return
-//     }
-
-//     result.data.ch_list.forEach((ch: string[]) => {
-//       const newCh: Chapter = {
-//         chapterNumber: parseInt(req.body.nr),
-//         title: ch[0],
-//         chapterURL: ch[1],
-//         text: null,
-//       }
-//       chapters.push(newCh)
-//     })
-
-//     const updatedBook = await prisma.book.update({
-//       where: {
-//         id: req.params.bookId,
-//       },
-//       data: {
-//         chList: chapters,
-//       },
-//     })
-//     res.status(200).json({ chapters: chapters, updatedBook: updatedBook })
-//   } catch (error: any) {
-//     res.status(500).json({ message: error.message })
-//   }
-// }
-
-// export const getChapter = async (req: Request, res: Response) => {
-//   //!BROKEN FIX CODE
-//   try {
-//     console.log(req.params)
-//     if (!req.params.bookId) {
-//       res.status(404).json({ message: 'Book id not provided' })
-//       return
-//     }
-//     if (!req.body.nr || !req.body.bookURL) {
-//       res
-//         .status(404)
-//         .json({ message: 'Book URL or Chapter number not provided' })
-//       return
-//     }
-
-//     const book = await prisma.book.findUnique({
-//       where: { id: req.params.bookId },
-//     })
-
-//     if (!book) {
-//       res.status(404).json({ message: 'Book not found' })
-//       return
-//     }
-//     const chapterNumber = parseInt(req.params.chapterNumber)
-
-//     const chapter: Chapter | undefined = book.chList.find(
-//       (c) => c?.chapterNumber === chapterNumber
-//     )
-
-//     if (!chapter) {
-//       res.status(404).json({ message: 'Chapter not found' })
-//       return
-//     }
-
-//     res.json(chapter)
-//   } catch (error: any) {
-//     console.error('Error getting chapter:', error) // Log the error
-//     res.status(500).json({ message: error.message })
-//   }
-// }
-
+export const getFavoriteBooks = async (req: AuthRequest, res: Response) => {
+  try {
+    const user = await prisma.user.findFirst({
+      where: {
+        id: req.user!.id,
+      },
+      include: {
+        favoriteBooks: {
+          include: {
+            book: true,
+          },
+        },
+      },
+    })
+    if (user) {
+      res.status(200).json({ favoriteBooks: user.favoriteBooks })
+    }
+  } catch (error: any) {
+    res.status(500).json({ message: error.message })
+  }
+}
 
 export const getStreamKey = async (req: AuthRequest, res: Response) => {
   try {
-    if (!req.user?.id) {
-      res.status(404).json({ message: 'User is not authorized' })
-      return
-    }
-    const token = generateToken(req.user.id)
+    const token = generateToken(req.user?.id)
     res.json({ token: token })
   } catch (error: any) {
     res.status(500).json({ message: error.message })
@@ -253,4 +218,3 @@ export const verifYStreamKey = (req: Request, res: Response) => {
 const generateToken = (id: any) => {
   return jwt.sign({ id }, process.env.JWT_SECRET!, { expiresIn: '30d' })
 }
-

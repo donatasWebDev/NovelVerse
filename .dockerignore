@@ -1,8 +1,33 @@
-**/node_modules
-dist
-build
+# General / OS / Editor
 *.log
-.git
-__pycache__
-**/__pycache__
+.DS_Store
+.env
+.vscode
+
+# Node / React / Build artifacts
+**/node_modules/
+**/package-lock.json
+**/dist/
+**/build/
+frontend/.env*
+backend/.env
+
+#local_only
+py_server/
+test/
+
+# Python cache & outputs
+**/__pycache__/
 *.pyc
+*.pyo
+**/venv/
+**/outputs/
+**/output/
+*.mp3
+*.wav
+**/ffmpeg
+**/ffmpeg.exe
+
+*/scraping/*.json
+*/scraping/*.jsonl
+*/scraping/*.txt   

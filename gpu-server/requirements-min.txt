@@ -1,0 +1,17 @@
+﻿flask==3.0.3
+flask-cors==5.0.0
+
+pydub==0.25.1
+numpy==1.26.4
+kokoro==0.9.4  
+
+
+requests~=2.32.5
+beautifulsoup4~=4.14.3
+selenium==4.39.0
+seleniumbase==4.45.8
+cloudscraper==1.2.71
+undetected-chromedriver==3.5.5
+fake-useragent==1.5.1
+
+colorama==0.4.6 

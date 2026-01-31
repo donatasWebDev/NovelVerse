@@ -1,0 +1,28 @@
+*.log
+*.env
+docker-compose.yml
+docker-compose.*.yml
+test.pyc
+Dockerfile-*
+README.md
+*.md
+# Binaries and external executables
+ffmpeg.exe
+ffmpeg
+*.exe
+
+# Other generated/temp crap (add if not already)
+downloaded_files/
+outputs/
+output/
+__pycache__/
+*.pyc
+*.pyo
+venv/
+
+# Scraping outputs
+*.json
+*.jsonl
+*.txt
+*.mp3
+*.wav

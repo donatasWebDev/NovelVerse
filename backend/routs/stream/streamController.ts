@@ -4,10 +4,20 @@ import ffmpeg from 'fluent-ffmpeg';
 import { Readable } from 'stream';
 import crypto from 'crypto';
 import { get } from 'http';
+import dotenv from "dotenv"
+
+dotenv.config()
 
 const s3 = new S3Client({ region: 'us-east-1' }); // your region
-const BUCKET = 'novelverse-audio-storage-20260131';
-const FLASK_URL = 'http://192.168.0.243:6001';
+const BUCKET = process.env.BUCKET;
+const FLASK_URL = process.env.PY_SERVER_URL;
+
+if (!BUCKET) {
+  throw new Error("S3 Bucket name not found")
+}
+if (!FLASK_URL) {
+  throw new Error("Flask Url not found")
+}
 
 
 function getS3Key(book_url: string, chapter_nr: string | number): string {

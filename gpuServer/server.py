@@ -9,10 +9,11 @@ from pydub import AudioSegment
 import logging
 from flask_cors import CORS
 import uuid
+import redis
 
 # Import your real modules (adjust paths)
 from tts.tts_pipeline import TTSPipeline
-from tasks.task_queue import TaskQueue, worker_function, Task
+from tasks.task_queue import TaskChain, TaskQueue, worker_function, Task
 from scarping.scrape import get_chapter_url, scrape_novel_chapter
 
 logging.basicConfig(level=logging.INFO,
@@ -34,8 +35,11 @@ backlog_ratio = 0.1
 MIN_CHUNK_SIZE = BLOCK_SIZE * 2
 WPM = 160
 MAX_WORKERS = 2
+MAX_CHAINS_PER_USER = 1
 
+r = redis.Redis(host='localhost', port=6379, decode_responses=True)
 task_queue = TaskQueue( DTYPE, SAMPLE_RATE, BLOCK_SIZE, MAX_WORKERS)
+
 
 def encode_mp3(chunk_bytes):
     # Option B: relative to current script location (better than ./)
@@ -67,45 +71,65 @@ def stream():
             data = request.args.to_dict()
 
         book_url = data.get("book_url")
-        chapter_nr = data.get("chapter_nr")
+        chapter_nr = int(data.get("chapter_nr"))
+        num_preloads = int(data.get("preload", 3))
+
+        user_ip = request.remote_addr
+        book_hash = hash(book_url) & 0xffffffff
+        user_chain_key = f"chain:active:{user_ip}:{book_hash}"
+
+        current_active = r.incr(user_chain_key)
+        if current_active > MAX_CHAINS_PER_USER:
+            r.decr(user_chain_key)
+            return {"error": f"Exceeded maximum of {MAX_CHAINS_PER_USER} active chains for this book."}, 429
+        r.expire(user_chain_key, 300) # expire in 5 minutes
 
         if not book_url or not chapter_nr:
             return {"error": "Missing book_url or chapter_nr"}, 400
-
-        # Scrape (your function)
-        chapter_url = get_chapter_url(book_url, chapter_nr)
-        text = scrape_novel_chapter(chapter_url)
-
-        if not text:
-            return {"error": "Failed to scrape chapter"}, 400
         
-        id = str(uuid.uuid4())
-        task = Task(id, text)
-        task_queue.request_queue.put(task)
+        task_chain = []
+        
+        for offset in range(num_preloads+1):  # current + preloads
+            ch_nr = chapter_nr + offset
+            chapter_url = get_chapter_url(book_url, ch_nr)
+            text = scrape_novel_chapter(chapter_url)
+
+            if not text:
+                logger.warning(f"Failed to scrape chapter {ch_nr}")
+                continue  # skip bad chapter, don't fail whole chain
+
+            task_id = str(uuid.uuid4())
+            task = Task(task_id, text, ch_nr, book_url)
+            task_chain.append(task)
+
+        if not task_chain:
+            r.decr(user_chain_key)
+            return {"error": "No valid chapters could be scraped"}, 400
+        
+        chain_id = str(uuid.uuid4())
+        task_chain_obj = TaskChain(chain_id, task_chain)
+        task_queue.put_chain(task_chain_obj)
+
 
         def generate():
-            yield f"data: {json.dumps({'status': 'started'})}\n\n"
-            duration = (len(text.split()) / WPM) * 60
-            yield f"data: {json.dumps({'status': 'audio-info','duration': duration, 'WPM': WPM, 'text': text})}\n\n"
-
-            block_made = 0
-            sent_bytes = 0
             try:
+                yield f"data: {json.dumps({'status': 'started', 'chapter': chapter_nr})}\n\n"
+
+                duration = (len(task.text.split()) / WPM) * 60
+                yield f"data: {json.dumps({'status': 'audio-info', 'duration': duration, 'WPM': WPM, 'text': task.text})}\n\n"
+
+                sent_bytes = 0
                 while True:
-                    full_buffer, is_done = task.get_response()
-                    # logger.info(f"Retrieved buffer size {len(full_buffer)}, done={is_done}")
+                    full_buffer, is_done = task_chain_obj.tasks[0].get_response()
+
                     pcm_bytes = b''
-
                     if len(full_buffer) > sent_bytes:
-                        new_pcm_bytes = full_buffer[sent_bytes:]
+                        new_pcm = full_buffer[sent_bytes:]
                         sent_bytes = len(full_buffer)
-
-                        # Convert float32 bytes → int16 bytes
-                        pcm_float = np.frombuffer(new_pcm_bytes, dtype=np.float32)
+                        pcm_float = np.frombuffer(new_pcm, dtype=np.float32)
                         pcm_int16 = (pcm_float * 32767).astype(np.int16)
                         pcm_bytes = pcm_int16.tobytes()
 
-                    # Final silence padding only when task is done and we have data
                     if is_done and pcm_bytes:
                         silence_samples = int(0.2 * SAMPLE_RATE)
                         silence_pcm = np.zeros(silence_samples, dtype=np.int16).tobytes()
@@ -114,18 +138,12 @@ def stream():
                     if not pcm_bytes:
                         if is_done:
                             yield f"data: {json.dumps({'status': 'complete'})}\n\n"
-                            logger.info("Stream complete (no more data)")
                             break
                         time.sleep(0.05)
                         continue
 
-                    # Encode and send
                     mp3_bytes = encode_mp3(pcm_bytes)
-                    payload = {
-                        "status": "chunk",
-                        "audio_bytes": base64.b64encode(mp3_bytes).decode('utf-8')
-                    }
-                    yield f"data: {json.dumps(payload)}\n\n"
+                    yield f"data: {json.dumps({'status': 'chunk', 'audio_bytes': base64.b64encode(mp3_bytes).decode('utf-8')})}\n\n"
 
                     if task.error:
                         yield f"data: {json.dumps({'status': 'error', 'message': task.error})}\n\n"
@@ -136,12 +154,22 @@ def stream():
                         break
 
                     time.sleep(0.05)
+
+            except GeneratorExit:  # client disconnected
+                logger.info("Client disconnected during stream")
+                raise
             except Exception as e:
+                logger.error(f"Stream generator error: {e}")
                 print(e)
-                yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
+                yield {f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"}, 500
             finally:
-                task.cancel()
-                logger.info(f"Task {id} stream generation finished.")
+                logger.info("Stream generator finished.")
+                if user_chain_key:
+                    r.decr(user_chain_key)
+                    count = r.get(user_chain_key)
+                    if count is None or int(count) <= 0:
+                        r.delete(user_chain_key)
+
 
         return Response(
             stream_with_context(generate()),
@@ -153,6 +181,9 @@ def stream():
 
 
 if __name__ == '__main__':
-    print("Running local SSE test server at http://127.0.0.1:5000/stream")
+    if (r.ping()):
+        print("Connected to Redis server successfully.")
+    else:
+        print("Failed to connect to Redis server.")
     task_queue.start(worker_function)
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=6001, debug=True)

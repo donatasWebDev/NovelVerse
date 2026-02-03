@@ -37,15 +37,32 @@ WPM = 160
 MAX_WORKERS = 2
 MAX_CHAINS_PER_USER = 1
 
-r = redis.Redis(host='localhost', port=6379, decode_responses=True)
+r = None
+
+if os.environ.get("ENV") == "dev":
+    r = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True,)
+else:
+    r = redis.Redis(
+        host='novelverse-redis-knb7i1.serverless.use1.cache.amazonaws.com',
+        port=6379,                  # keep 6379
+        ssl=True,                   # ← This enables TLS
+        decode_responses=True,
+        socket_timeout=10,
+        socket_connect_timeout=10,
+    )
+
 task_queue = TaskQueue( DTYPE, SAMPLE_RATE, BLOCK_SIZE, MAX_WORKERS)
 
 
 def encode_mp3(chunk_bytes):
-    # Option B: relative to current script location (better than ./)
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    ffmpeg_path = os.path.join(script_dir, "ffmpeg.exe")
-    AudioSegment.ffmpeg = ffmpeg_path
+
+    if os.environ.get("ENV") == "dev":
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        ffmpeg_path = os.path.join(script_dir, "ffmpeg.exe")
+        AudioSegment.ffmpeg = ffmpeg_path
+
+    else:
+        AudioSegment.ffmpeg = "ffmpeg" #Production PATH
 
     audio = AudioSegment(
         chunk_bytes,

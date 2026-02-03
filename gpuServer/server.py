@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-CORS(app, resources={r'/stream': {"origins": "http://localhost:5173"}})
+CORS(app, resources={r'/stream': {"origins": ["http://localhost:5173", "https://novel-verse-three.vercel.app"]}})
 
 SAMPLE_RATE = 24000
 SAMPLE_WIDTH = 2

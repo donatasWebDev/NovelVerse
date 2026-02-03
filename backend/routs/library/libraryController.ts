@@ -107,7 +107,7 @@ export const getBookInfo = async (req: Request, res: Response) => {
     }
     const book = await prisma.book.findFirst({
       where: {
-        id: id,
+        id: id as string,
       },
     })
     if (!book) {

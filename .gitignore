@@ -28,9 +28,9 @@ test/
 **/ffmpeg
 **/ffmpeg.exe
 
-**/scraping/*.json
-**/scraping/*.jsonl
-**/scraping/*.txt
+**/*.json
+**/*.jsonl
+**/*.txt
 
 # Old containerization
 docker-compose.yml

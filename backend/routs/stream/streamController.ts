@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { S3Client, HeadObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
 import ffmpeg from 'fluent-ffmpeg';
+import ffmpegPath from '@ffmpeg-installer/ffmpeg';
 import { Readable } from 'stream';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
@@ -13,6 +14,8 @@ const FLASK_URL = process.env.SPOT_API_BASE;
 
 if (!BUCKET) throw new Error('S3 Bucket name not found');
 if (!FLASK_URL) throw new Error('Flask URL not found');
+
+ffmpeg.setFfmpegPath(ffmpegPath.path);
 
 // Generates deterministic S3 key from book URL + chapter
 function getS3Key(bookUrl: string, chapterNr: string | number): string {
@@ -131,7 +134,8 @@ export const streamController = async (req: Request, res: Response) => {
   const { book_url, chapter_nr, preload = '2' } = req.query;
 
   if (!book_url || !chapter_nr) {
-    return res.status(400).json({ error: 'Missing book_url or chapter_nr' });
+    res.status(400).json({ error: 'Missing book_url or chapter_nr' });
+    return
   }
 
   const bookUrlStr = book_url as string;
@@ -164,7 +168,8 @@ export const streamController = async (req: Request, res: Response) => {
     req.on('close', () => mp3Stream.kill('SIGKILL'));
   } catch (err: any) {
     if (err.name === 'NotFound') {
-      return proxyToFlask(req, res, bookUrlStr, chapterNrStr, preload as string);
+      proxyToFlask(req, res, bookUrlStr, chapterNrStr, preload as string);
+      return
     }
 
     console.error('S3 error:', err);

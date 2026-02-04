@@ -105,7 +105,8 @@ export const getBookInfo = async (req: Request, res: Response) => {
     const id = Array.isArray(idParam) ? idParam[0] : idParam;
 
     if (!id) {
-      return res.status(400).json({ message: 'Book ID is required' });
+      res.status(400).json({ message: 'Book ID is required' });
+      return
     }
     const book = await prisma.book.findFirst({
       where: {

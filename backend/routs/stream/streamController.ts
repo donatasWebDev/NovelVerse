@@ -9,11 +9,6 @@ import ffmpegPath from '@ffmpeg-installer/ffmpeg'
 import { Readable, PassThrough, Transform, TransformCallback } from 'stream'
 import crypto from 'crypto'
 import dotenv from 'dotenv'
-import * as mm from 'music-metadata'
-// @ts-ignore
-import rangeStream from 'range-stream';
-import { pipeline } from 'stream/promises';
-
 
 dotenv.config()
 

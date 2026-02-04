@@ -28,7 +28,6 @@ test/
 **/ffmpeg
 **/ffmpeg.exe
 
-**/*.json
 **/*.jsonl
 **/*.txt
 

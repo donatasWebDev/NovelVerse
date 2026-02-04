@@ -1,12 +1,19 @@
 {
-  "rewrites": [
+  "version": 2,
+  "builds": [
     {
-      "source": "/(.*)",
-      "destination": "/backend/dist/index.js"
+      "src": "dist/index.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/dist/index.js"
     }
   ],
   "functions": {
-    "backend/dist/index.js": {
+    "dist/index.js": {
       "includeFiles": "node_modules/music-metadata/**"
     }
   }

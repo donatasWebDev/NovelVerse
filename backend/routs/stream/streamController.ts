@@ -9,6 +9,8 @@ import ffmpegPath from '@ffmpeg-installer/ffmpeg'
 import { Readable, PassThrough, Transform, TransformCallback } from 'stream'
 import crypto from 'crypto'
 import dotenv from 'dotenv'
+import * as mm from 'music-metadata'
+
 
 dotenv.config()
 

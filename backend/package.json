@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "nodemon --exec ts-node ./index.ts",
     "start": "node dist/index.js",
-    "build": "npx tsup index.ts --format esm --no-dts"
+    "build": "tsup"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.980.0",

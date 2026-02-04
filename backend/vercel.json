@@ -1,0 +1,7 @@
+{
+  "functions": {
+    "backend/dist/**/*.js": {
+      "includeFiles": "node_modules/music-metadata/**"
+    }
+  }
+}

@@ -4,7 +4,6 @@ import { Request, Response, NextFunction } from 'express'
 import cors from 'cors'
 import mongoose from 'mongoose'
 import { createServer } from 'node:http'
-import path from 'path'
 import bodyParser from 'body-parser'
 import dotenv from 'dotenv'
 import { initSessionMiddleware } from './middleware/session'
@@ -111,7 +110,6 @@ app.get('/health', async (req: Request, res: Response) => {
   })
 })
 
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
 app.use('/api/user', userRouter)
 app.use('/api/lib', libraryRouter)
 app.use('/api/stream', streamRouter)

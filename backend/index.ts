@@ -1,4 +1,5 @@
 import express from 'express'
+import 'music-metadata';
 import { Request, Response, NextFunction } from 'express'
 import cors from 'cors'
 import mongoose from 'mongoose'

@@ -6,13 +6,19 @@ import { createServer } from 'node:http'
 import path from 'path'
 import bodyParser from 'body-parser'
 import dotenv from 'dotenv'
-import { initSessionMiddleware } from './middleware/session';
+import { initSessionMiddleware } from './middleware/session'
 
-import {getRedisClient} from "./utils/redisClient"
+import {getRedisClient, redisMiddleware} from "./utils/redisClient"
 
 import userRouter from './routs/user/userRouts'
 import libraryRouter from './routs/library/libraryRouts'
 import streamRouter from './routs/stream/streamRoute'
+
+declare module 'express' {
+  interface Request {
+    redis?: any;
+  }
+}
 
 dotenv.config()
 const app = express()
@@ -66,12 +72,21 @@ app.use((err: Error,req: Request,res: Response, next: NextFunction) => {
 })
 
 
+app.use(async (req: Request, res: Response, next: NextFunction) => {
+    const redisClient = await getRedisClient();
+    req.redis = redisClient; // attach to request object
+    next();
+})
+
+
 const url: string | undefined = process.env.DATABASE_URL
 
 if (!url) {
   console.error('DATABASE_URL is not defined in .env file')
   process.exit(1) // Exit the process
 }
+
+
 
 mongoose.set('strictQuery', false)
 mongoose
@@ -85,8 +100,8 @@ mongoose
 
 app.use(bodyParser.json())
 
-app.get('/health', async (_req: Request, res: Response) => {
-  const redisStatus = await (await getRedisClient()).ping() ? 'connected' : 'disconnected'
+app.get('/health', async (req: Request, res: Response) => {
+  const redisStatus = await req.redis.ping() ? 'connected' : 'disconnected'
   const mongoStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
   res.status(200).json({
     status: 'OK',

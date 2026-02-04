@@ -143,10 +143,11 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
       currentChapter: 1,
       isPlaying: false,
     }
-    Cookies.set("currentBook", JSON.stringify(book));
-    localStorage.setItem("currentBook", JSON.stringify(book));
+    Cookies.set("currentBook", JSON.stringify(curBook));
+    localStorage.setItem("currentBook", JSON.stringify(curBook));
     setCurrentBook(curBook);
-    return book
+    console.log("current book", curBook)
+    return curBook
   }
 
   const getCurrentBook = (): BookCurrent | null => {

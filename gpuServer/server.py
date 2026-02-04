@@ -24,7 +24,7 @@ app = Flask(__name__)
 
 CORS(app, resources={r'/stream': {"origins": ["http://localhost:5173", "https://novel-verse-three.vercel.app"]}})
 
-SAMPLE_RATE = 24000
+SAMPLE_RATE = 48000
 SAMPLE_WIDTH = 2
 CHANNELS = 1
 BLOCK_SIZE = 19200
@@ -115,8 +115,9 @@ def stream():
                 logger.warning(f"Failed to scrape chapter {ch_nr}")
                 continue  # skip bad chapter, don't fail whole chain
 
+            duration = (len(text.split()) / WPM) * 60
             task_id = str(uuid.uuid4())
-            task = Task(task_id, text, ch_nr, book_url)
+            task = Task(task_id, text, ch_nr, book_url, WPM, duration)
             task_chain.append(task)
 
         if not task_chain:

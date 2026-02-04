@@ -19,14 +19,15 @@ export const PlayerMiddle = () => {
 
 
     const handleInitializeAudioBook = async () => {
-        let oldBook = getCurrentBook()
-        if (oldBook) {
-            setBook(oldBook)
-            setLoading(false)
-            return
-        }
+        // let oldBook = getCurrentBook()
+        // if (oldBook) {
+        //     setBook(oldBook)
+        //     setLoading(false)
+        //     return
+        // }
         if (p_id) {
             const newBook: any = await getBookById(p_id)
+            console.log("new book", newBook)
             if (!newBook) {
                 setLoading(false)
                 return
@@ -47,10 +48,6 @@ export const PlayerMiddle = () => {
             <AudioPlayerPage book={book} chapter={Number(chapter)} />
         )
     }
-    if (!book) {
-        console.log("no book found", setBook)
-    }
-    
     return <div className=" flex items-center justify-between px-4 py-3 bg-gray-800 border-b border-gray-700">
         <h1 className="text-xl font-bold text-gray-100">Loading...</h1>
     </div>;

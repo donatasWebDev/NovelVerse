@@ -1,4 +1,5 @@
 // lib/redis.ts (or wherever you keep it)
+import { NextFunction } from 'express';
 import { createClient } from 'redis';
 
 let redisClient: ReturnType<typeof createClient> | null = null;
@@ -46,6 +47,16 @@ export async function getRedisClient() {
 
   return redisClient;
 }
+
+
+export async function redisMiddleware(req: any, res: Response, next: NextFunction) {
+  if (!redisClient) {
+    redisClient = await getRedisClient();
+  }
+  req.redis = redisClient; // attach to request object
+  next();
+}
+
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   if (redisClient?.isOpen) {

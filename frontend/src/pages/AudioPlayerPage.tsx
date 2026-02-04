@@ -57,12 +57,7 @@ export const AudioPlayerPage = ({
 
 
 
-  const { connect, isConnected, messages, startJob, audio: socketAudioChunks, disconnect } = useSocketContext()
-
-  const safetyTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const [retries, setRetries] = useState(0);
-  const MAX_RETRIES = 2; // e.g. initial + 2 retries
-  const QUEUE_SAFETY_TIMEOUT = 20 * 1000; // 20s — tune to ~1.5× your typical worst-case delay
+  const { connect, isConnected, messages, audio: socketAudioChunks, disconnect, clearAudioBuffer } = useSocketContext()
 
 
 
@@ -94,9 +89,9 @@ export const AudioPlayerPage = ({
       if (!isConnected && streamKey && user && isFirstLoad) {
         console.log("Connecting to socket with streamKey:", streamKey, "and userId:", user.id);
         setIsFirstLoad(false)
-        startJobWithSafetyNet(streamKey, user.id, book.bookURL, chapter.toString())
+        connect(streamKey, user.id, book.bookURL, chapter.toString());
       }
-      // connect(streamKey, user.id, book.bookURL, chapter.toString());
+
 
     }
     start()
@@ -137,51 +132,20 @@ export const AudioPlayerPage = ({
         setChapterInfo(info)
       }
     }
-
-    if (messages?.some(m => m.status === "started") && messages.length > 0) {
-      if (safetyTimerRef.current) {
-        console.log("Progress detected — clearing safety timer");
-        clearTimeout(safetyTimerRef.current);
-        safetyTimerRef.current = null;
-        setRetries(0);
-      }
-    }
   }, [messages])
 
   useEffect(() => {
+
+    if (socketAudioChunks.length > 0 && !isConnected) {
+      clearAudioBuffer()
+    }
+
     if (socketAudioChunks.length > 2 && !audioLoaded) {
       setIsPlaying(true);
       setAudioLoaded(true);
     }
   }, [socketAudioChunks])
 
-
-  const startJobWithSafetyNet = async (streamKey: string, userId: string, bookURL: string, chapter: string) => {
-    try {
-      const newJobId = await startJob(streamKey, userId, bookURL, chapter);
-      connect(newJobId);
-
-      // Single timeout: if no progress after X seconds, cancel & retry once
-      safetyTimerRef.current = setTimeout(() => {
-        console.log(`No progress after ${QUEUE_SAFETY_TIMEOUT / 1000}s — cancelling & retrying`);
-
-        if (newJobId) {
-          disconnect(newJobId);
-        }
-
-        if (retries < MAX_RETRIES) {
-          startJobWithSafetyNet(streamKey, userId, bookURL, chapter); // recursive call, but only once or twice max
-          setRetries(prev => prev + 1)
-        }
-
-
-      }, QUEUE_SAFETY_TIMEOUT);
-    }
-    catch (err) {
-      console.log(err)
-    }
-
-  };
 
   const handlePlayerRequestsMoreData = useCallback(() => {
     // Check if there are new chunks available in socketAudioChunks

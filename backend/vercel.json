@@ -1,6 +1,12 @@
 {
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/backend/dist/index.js"
+    }
+  ],
   "functions": {
-    "backend/dist/**/*.js": {
+    "backend/dist/index.js": {
       "includeFiles": "node_modules/music-metadata/**"
     }
   }

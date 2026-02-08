@@ -172,13 +172,6 @@ def worker_function(request_queue, device,
             for task in task_chain.tasks:
                 
                 s3_key = get_s3_key(task.book_url, task.ch)
-                try:
-                    s3.head_object(Bucket=BUCKET_NAME, Key=s3_key)
-                    logger.info(f"Worker {worker_id}: Found cached audio for task {task.task_id} in S3.")
-                    task.mark_complete()
-                    continue  # Object exists, skip to next task
-                except Exception as e:
-                    logger.info(f"cache miss for task {task.task_id} in S3")
 
                 logger.info(f"Worker {worker_id}: Processing task {task.task_id} in chain {task_chain.chain_id}")
                 if task_chain.is_canceled() or task.is_canceled():

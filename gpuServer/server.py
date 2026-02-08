@@ -10,11 +10,13 @@ import logging
 from flask_cors import CORS
 import uuid
 import redis
+import boto3
 
 # Import your real modules (adjust paths)
 from tts.tts_pipeline import TTSPipeline
 from tasks.task_queue import TaskChain, TaskQueue, worker_function, Task
 from scarping.scrape import get_chapter_url, scrape_novel_chapter
+from caching.cache_opum import get_s3_key
 
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(threadName)s - %(levelname)s - %(message)s')
@@ -104,10 +106,22 @@ def stream():
         if not book_url or not chapter_nr:
             return {"error": "Missing book_url or chapter_nr"}, 400
         
+
+        s3 = boto3.client('s3')  # ← this line uses EC2 IAM role automatically
+        BUCKET_NAME = 'novelverse-audio-storage-20260131'
+        
         task_chain = []
         
         for offset in range(num_preloads+1):  # current + preloads
             ch_nr = chapter_nr + offset
+
+            s3_key = get_s3_key(book_url, ch_nr)
+            try:
+                s3.head_object(Bucket=BUCKET_NAME, Key=s3_key)
+                continue
+            except Exception as e:
+                logger.info("cache missed Generating")
+
             chapter_url = get_chapter_url(book_url, ch_nr)
             text = scrape_novel_chapter(chapter_url)
 

@@ -57,7 +57,7 @@ export const AudioPlayerPage = ({
 
 
 
-  const { connect, isConnected, messages, audio: socketAudioChunks, disconnect, clearAudioBuffer } = useSocketContext()
+  const { connect, isConnected, messages, audio: socketAudioChunks, clearAudioBuffer } = useSocketContext()
 
 
 
@@ -106,7 +106,7 @@ export const AudioPlayerPage = ({
     console.log(`Chapter switched – forcing Player re-mount with new key: ${newKey}`);
     setPlayerKey(newKey);
     setIsFirstLoad(true)
-    setPlaybackSpeed(book.speed)
+    setPlaybackSpeed(playbackSpeed || book.speed)
     setLastChunkSentIndex(-1);
     const currentChapter = {
       ...book,
@@ -122,12 +122,13 @@ export const AudioPlayerPage = ({
   }, [chapter, book])
 
   useEffect(() => {
-
     console.log("messages Updated", messages)
 
 
-    if (messages && messages.length > 0 && !chapterInfo) {
+
+    if (messages && messages.length > 0) {
       let info = messages.find((m) => m.status === "audio-info")
+      console.log("chapter Info", info)
       if (info) {
         setChapterInfo(info)
       }
@@ -154,6 +155,7 @@ export const AudioPlayerPage = ({
     if (lastChunkSentIndex >= socketAudioChunks.length) {
       console.warn(`Index out of sync with chunks (${lastChunkSentIndex} >= ${socketAudioChunks.length}) – resetting to -1`);
       setLastChunkSentIndex(-1);  // Auto-fix if fucked
+      // setTimeout( () => clearAudioBuffer(), 3 * 1000) // let the buffer handle left over chunks
     }
 
     if (socketAudioChunks.length > lastChunkSentIndex + 1) {

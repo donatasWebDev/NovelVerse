@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { body } from 'framer-motion/client'
+import { b, body } from 'framer-motion/client'
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { EventSourcePolyfill } from 'event-source-polyfill';
 import Cookies from "js-cookie";
@@ -51,7 +51,7 @@ export const useSocket = (url: string = streamUrl) => {
 
       const controller = new AbortController()
 
-      const es = new EventSourcePolyfill(fullUrl, {
+      const es:EventSourcePolyfill = new EventSourcePolyfill(fullUrl, {
         // Use polyfill for headers
         headers: {
           Authorization: `Bearer ${token}`,
@@ -71,21 +71,27 @@ export const useSocket = (url: string = streamUrl) => {
         try {
           const obj = JSON.parse(event.data)
 
-          if (obj.status === 'chunk') {
-            const base64 = obj.audio_bytes
-            const binaryString = atob(base64)
-            const buffer = new Uint8Array(binaryString.length)
 
-            for (let i = 0; i < binaryString.length; i++) {
-              buffer[i] = binaryString.charCodeAt(i)
-            }
+          switch (obj.status) {
+            case 'chunk':
+              const base64 = obj.audio_bytes
+              const binaryString = atob(base64)
+              const buffer = new Uint8Array(binaryString.length)
 
-            setAudio((prev) => [...prev, buffer.buffer])
-          } else {
-            // if (obj.status === "complete") disconnect()
-            console.log('Received message:', obj)
+              for (let i = 0; i < binaryString.length; i++) {
+                buffer[i] = binaryString.charCodeAt(i)
+              }
 
-            setMessages((prev) => [...prev, obj])
+              setAudio((prev) => [...prev, buffer.buffer])
+            break
+            case "complete":
+              if (eventSourceRef.current) eventSourceRef.current.close()
+              console.log('source ended')
+              break
+            default:
+              console.log('Received message:', obj)
+              setMessages((prev) => [...prev, obj])
+
           }
         } catch (e) {
           console.error('Message parse error:', e)
@@ -122,7 +128,9 @@ export const useSocket = (url: string = streamUrl) => {
   }, [])
 
   const clearAudioBuffer = useCallback((): void => {
+    console.log("clearing buffer")
     setAudio([])
+    setMessages([])
   }, [])
 
   // const sendMessage = useCallback((message: any) => {

@@ -34,7 +34,7 @@ packet_size = 2048
 backlog_ratio = 0.1
 MIN_CHUNK_SIZE = BLOCK_SIZE * 2
 WPM = 160
-MAX_WORKERS = 2
+MAX_WORKERS = 10
 MAX_CHAINS_PER_USER = 1
 
 r = None

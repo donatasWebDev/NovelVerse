@@ -92,6 +92,7 @@ def stream():
         book_url = data.get("book_url")
         chapter_nr = int(data.get("chapter_nr"))
         num_preloads = int(data.get("preload", 3))
+        req_text = None
 
         user_ip = request.remote_addr
         book_hash = hash(book_url) & 0xffffffff
@@ -106,7 +107,6 @@ def stream():
         if not book_url or not chapter_nr:
             return {"error": "Missing book_url or chapter_nr"}, 400
         
-
         s3 = boto3.client('s3')  # ← this line uses EC2 IAM role automatically
         BUCKET_NAME = 'novelverse-audio-storage-20260131'
         
@@ -114,7 +114,6 @@ def stream():
         
         for offset in range(num_preloads+1):  # current + preloads
             ch_nr = chapter_nr + offset
-
             s3_key = get_s3_key(book_url, ch_nr)
             try:
                 s3.head_object(Bucket=BUCKET_NAME, Key=s3_key)
@@ -145,7 +144,11 @@ def stream():
 
         def generate():
             try:
-                yield f"data: {json.dumps({'status': 'started', 'chapter': chapter_nr})}\n\n"
+                task = task_chain_obj.tasks[0]
+                if task.ch != chapter_nr:
+                    logger.info("ch already generated")
+                    return 
+                yield f"data: {json.dumps({'status': 'started', 'chapter': task.ch})}\n\n"
 
                 duration = (len(task.text.split()) / WPM) * 60
                 yield f"data: {json.dumps({'status': 'audio-info', 'duration': duration, 'WPM': WPM, 'text': task.text})}\n\n"

@@ -178,7 +178,6 @@ def stream():
                 raise
             except Exception as e:
                 logger.error(f"Stream generator error: {e}")
-                print(e)
                 yield {f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"}, 500
             finally:
                 logger.info("Stream generator finished.")

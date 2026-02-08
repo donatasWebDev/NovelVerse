@@ -190,8 +190,6 @@ def worker_function(request_queue, device,
 
                     for isFinal, chunk in tts_pipeline.generate_audio_chunks(task.text):
 
-                        logger.info(f"Worker {worker_id}: Generated chunk of size {len(chunk)} (isFinal={isFinal}) for task {task.task_id}")
-
                         if isFinal:
                             logger.info(f"Worker {worker_id}: Completed task {task.task_id}")
                             task.put_chunk(chunk)

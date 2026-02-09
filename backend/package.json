@@ -1,11 +1,11 @@
 {
-  "name": "backend-chat-app",
+  "name": "backend-novelverse",
   "version": "1.0.0",
-  "description": "real time chat app",
+  "description": "novelverse real time audio solution",
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "dev": "nodemon --exec ts-node ./index.ts",
+    "dev": "tsx watch index.ts",
     "start": "node dist/index.js",
     "build": "tsup"
   },
@@ -51,6 +51,7 @@
     "prisma": "^6.5.0",
     "ts-node": "^10.9.2",
     "tsup": "^8.5.1",
+    "tsx": "^4.21.0",
     "typescript": "^5.8.2"
   }
 }

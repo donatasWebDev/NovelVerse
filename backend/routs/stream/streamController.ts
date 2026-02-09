@@ -10,16 +10,21 @@ import { Readable, PassThrough, Transform, TransformCallback } from 'stream'
 import crypto from 'crypto'
 import dotenv from 'dotenv'
 import * as mm from 'music-metadata'
-
+import { type } from 'os'
+import axios from 'axios'
 
 dotenv.config()
 
 const s3 = new S3Client({ region: 'us-east-1' })
 const BUCKET = process.env.BUCKET
 const FLASK_URL = process.env.SPOT_API_BASE
+const WAKEUP_API_URL =
+  'https://k2uau6zx16.execute-api.us-east-1.amazonaws.com/WakeUP/wake'
+const WAKEUP_API_KEY = process.env.API_KEY_WAKEUP
 
 if (!BUCKET) throw new Error('S3 Bucket name not found')
 if (!FLASK_URL) throw new Error('Flask URL not found')
+if (!WAKEUP_API_KEY) throw new Error('WAKEUP api key not found')
 
 ffmpeg.setFfmpegPath(ffmpegPath.path)
 
@@ -132,10 +137,52 @@ async function proxyToFlask(
       res.end()
       console.log('Client disconnected – cancelled Flask stream')
     })
-  } catch (err) {
-    console.error('Proxy error:', err)
-    if (!res.headersSent) res.status(500).json({ error: 'Proxy failed' })
-    else res.end()
+  } catch (err: any) {
+    const errMsg = err?.message || 'Unknown proxy error'
+
+    if (errMsg.includes('530')) {
+      console.error('Detected 530 → attempting server wakeup')
+
+      try {
+        const wakeupRes = await axios.get(WAKEUP_API_URL, {
+          headers: { 'x-api-key': WAKEUP_API_KEY },
+          timeout: 20000, // give wakeup up to 20s
+        })
+
+        const data = wakeupRes.data
+        console.log(data)
+
+        if (data?.statusCode === 200) {
+          // Already running → proxy now
+          return proxyToFlask(req, res, bookUrl, chapterNr, preload)
+        }
+
+        if (data?.statusCode === 202) {
+          res.write(`data: {"status":"error", "message": "starting"}\n\n`)
+          res.end()
+          return
+        }
+
+        // Any other status → treat as error
+        res.write(
+          `data: {"status":"error", "message": "Server wakeup failed (code ${data?.statusCode || 'unknown'})"}\n\n`,
+        )
+        res.end()
+      } catch (wakeupErr: any) {
+        console.error('Wakeup failed:', wakeupErr)
+        res.write(
+          `data: {"status":"error", "message": "Cannot wake up server right now"}\n\n`,
+        )
+        res.end()
+      }
+    } else {
+      // Normal proxy error
+      console.error('Proxy error:', err)
+      res.write(
+        `data: {"status":"error", "message": "${errMsg.replace(/"/g, '\\"')}"}\n\n`,
+      )
+      res.end()
+    }
   }
 }
 
@@ -158,11 +205,15 @@ export const streamController = async (req: Request, res: Response) => {
     await s3.send(new HeadObjectCommand({ Bucket: BUCKET, Key: s3Key }))
 
     // Cache miss → fetch from S3 once
-    const metaResp  = await s3.send(
-      new GetObjectCommand({ Bucket: BUCKET, Key: s3Key, Range: 'bytes=0-65535' }),
+    const metaResp = await s3.send(
+      new GetObjectCommand({
+        Bucket: BUCKET,
+        Key: s3Key,
+        Range: 'bytes=0-65535',
+      }),
     )
 
-    if (!metaResp.Body) throw new Error ("No Stream, Cache missed")
+    if (!metaResp.Body) throw new Error('No Stream, Cache missed')
 
     setStreamingHeaders(res)
 
@@ -170,7 +221,7 @@ export const streamController = async (req: Request, res: Response) => {
       mimeType: 'audio/ogg',
     })
 
-    const vorbisTags = metadata.native?.vorbis ?? [] // ← lowercase 'v'
+    const vorbisTags = metadata.native?.vorbis ?? []
 
     let durationFromTag: number | undefined
     let fullText = ''
@@ -196,7 +247,7 @@ export const streamController = async (req: Request, res: Response) => {
       })}\n\n`,
     )
 
-    const ffmpegStream  = await s3.send(
+    const ffmpegStream = await s3.send(
       new GetObjectCommand({ Bucket: BUCKET, Key: s3Key }),
     )
 

@@ -13,6 +13,7 @@ import {
   X,
   Flashlight,
 } from "lucide-react";
+import { Toaster, toast } from "sonner";
 // import { useNavigate } from "react-router-dom";
 import { ChDropDown } from "../components/chDropDown"
 import Player, { PlayerCompRef } from "../components/Player"
@@ -20,9 +21,10 @@ import { useSocketContext } from "../uttils/socketContext";
 import { useAuth } from "../uttils/AuthContex";
 import { useLibrary } from "../uttils/LibraryContext";
 import { Link } from "react-router-dom";
-import { a, audio } from "framer-motion/client";
+import { a, audio, span } from "framer-motion/client";
 import { VolumeButton } from "../components/VolumeBtn"
-// import { useLibrary } from "../uttils/LibraryContext";
+
+
 
 interface AudioPlayerPageProps {
   book: BookCurrent;
@@ -32,8 +34,7 @@ export const AudioPlayerPage = ({
   book,
   chapter
 }: AudioPlayerPageProps) => {
-  // const navigate = useNavigate()
-  // const {getChpaterAudioCurrent} = useLibrary()!
+
   const [showText, setShowText] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
@@ -47,17 +48,19 @@ export const AudioPlayerPage = ({
   const [streamKey, setStreamKey] = useState<string | null>(null)
   const [chapterNr, setChapterNr] = useState<number>(chapter)
   const [playerKey, setPlayerKey] = useState<string>('');
-  const { user } = useAuth()
-  const { getStreamKey, verifyStreamKey } = useLibrary()!
+
   const [lastChunkSentIndex, setLastChunkSentIndex] = useState(-1);
   const [isFirstLoad, setIsFirstLoad] = useState(true)
   const [volume, setVolume] = useState(0.8);
   const [isMuted, setIsMuted] = useState(false);
   const [showVolumeMenu, setShowVolumeMenu] = useState(false)
 
+  const { getStreamKey, verifyStreamKey } = useLibrary()!
+  const { user } = useAuth()!
+  const { connect, isConnected, messages, audio: socketAudioChunks, clearAudioBuffer, error } = useSocketContext()
 
 
-  const { connect, isConnected, messages, audio: socketAudioChunks, clearAudioBuffer } = useSocketContext()
+
 
 
 
@@ -124,16 +127,34 @@ export const AudioPlayerPage = ({
   useEffect(() => {
     console.log("messages Updated", messages)
 
+    if (error?.message === "starting") {
+      toast.warning((<span className="text-lg font-bold">Server is starting up…</span>), {
+        description: (
+            <div className="text-sm font-semibold">
+              This usually takes <span className="font-semibold">1–5 minutes</span>.
+              <br />
+              <span className="font-light">We'll let you know when it's ready.</span>
+            </div>
+            ),
+        duration: 2* 60 * 1000, //2min
+        id: "server-starting"
+      })
+      return
+    }
 
+    if (error?.message && error.message.length > 0) {
+      toast.error(error?.message)
+    }
 
-    if (messages && messages.length > 0) {
+    if (messages && messages.length > 0 && !error) {
       let info = messages.find((m) => m.status === "audio-info")
+      toast.dismiss("server-starting")
       console.log("chapter Info", info)
       if (info) {
         setChapterInfo(info)
       }
     }
-  }, [messages])
+  }, [messages, error])
 
   useEffect(() => {
 

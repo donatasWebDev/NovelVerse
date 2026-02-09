@@ -1,8 +1,8 @@
 import axios from 'axios'
 import { b, body } from 'framer-motion/client'
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { EventSourcePolyfill } from 'event-source-polyfill';
-import Cookies from "js-cookie";
+import { EventSourcePolyfill } from 'event-source-polyfill'
+import Cookies from 'js-cookie'
 
 console.log('All env vars:', import.meta.env)
 console.log('Specific:', import.meta.env.VITE_API_STREAM_URL)
@@ -36,6 +36,8 @@ export const useSocket = (url: string = streamUrl) => {
         eventSourceRef.current.close()
       }
 
+      setError(null)
+
       // Build URL with query params
       const params = new URLSearchParams({
         book_url,
@@ -44,14 +46,14 @@ export const useSocket = (url: string = streamUrl) => {
 
       const token = Cookies.get('userToken')
       if (!token) {
-        throw new Error("No token")
+        throw new Error('No token')
       }
 
       const fullUrl = `${url}/stream?${params}`
 
       const controller = new AbortController()
 
-      const es:EventSourcePolyfill = new EventSourcePolyfill(fullUrl, {
+      const es: EventSourcePolyfill = new EventSourcePolyfill(fullUrl, {
         // Use polyfill for headers
         headers: {
           Authorization: `Bearer ${token}`,
@@ -67,10 +69,9 @@ export const useSocket = (url: string = streamUrl) => {
         setData({ key, user_id })
       }
 
-      es.onmessage = (event:any) => {
+      es.onmessage = (event: any) => {
         try {
           const obj = JSON.parse(event.data)
-
 
           switch (obj.status) {
             case 'chunk':
@@ -83,24 +84,29 @@ export const useSocket = (url: string = streamUrl) => {
               }
 
               setAudio((prev) => [...prev, buffer.buffer])
-            break
-            case "complete":
+              break
+            case 'complete':
               if (eventSourceRef.current) eventSourceRef.current.close()
               console.log('source ended')
+              break
+            case 'error':
+              setError(Error(obj.message))
+              if (eventSourceRef.current) eventSourceRef.current.close()
               break
             default:
               console.log('Received message:', obj)
               setMessages((prev) => [...prev, obj])
-
+              setMessages((prev) => [...prev, obj])
           }
-        } catch (e) {
+        } catch (e: any) {
+          setError(e)
           console.error('Message parse error:', e)
         }
       }
 
-      es.onerror = (err:any) => {
+      es.onerror = (err: any) => {
         console.error('SSE error:', err)
-        setError(err as any)
+        setError(err)
         es.close()
         eventSourceRef.current = null
         setIsConnected(false)
@@ -128,7 +134,7 @@ export const useSocket = (url: string = streamUrl) => {
   }, [])
 
   const clearAudioBuffer = useCallback((): void => {
-    console.log("clearing buffer")
+    console.log('clearing buffer')
     setAudio([])
     setMessages([])
   }, [])

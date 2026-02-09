@@ -10,11 +10,13 @@ import logging
 from flask_cors import CORS
 import uuid
 import redis
+import boto3
 
 # Import your real modules (adjust paths)
 from tts.tts_pipeline import TTSPipeline
 from tasks.task_queue import TaskChain, TaskQueue, worker_function, Task
 from scarping.scrape import get_chapter_url, scrape_novel_chapter
+from caching.cache_opum import get_s3_key
 
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(threadName)s - %(levelname)s - %(message)s')
@@ -22,9 +24,9 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-CORS(app, resources={r'/stream': {"origins": "http://localhost:5173"}})
+CORS(app, resources={r'/stream': {"origins": ["http://localhost:5173", "https://novel-verse-three.vercel.app"]}})
 
-SAMPLE_RATE = 24000
+SAMPLE_RATE = 48000
 SAMPLE_WIDTH = 2
 CHANNELS = 1
 BLOCK_SIZE = 19200
@@ -34,7 +36,7 @@ packet_size = 2048
 backlog_ratio = 0.1
 MIN_CHUNK_SIZE = BLOCK_SIZE * 2
 WPM = 160
-MAX_WORKERS = 2
+MAX_WORKERS = 10
 MAX_CHAINS_PER_USER = 1
 
 r = None
@@ -44,7 +46,7 @@ if os.environ.get("ENV") == "dev":
 else:
     r = redis.Redis(
         host='novelverse-redis-knb7i1.serverless.use1.cache.amazonaws.com',
-        port=6379,                  # keep 6379
+        port=6379,
         ssl=True,                   # ← This enables TLS
         decode_responses=True,
         socket_timeout=10,
@@ -90,6 +92,7 @@ def stream():
         book_url = data.get("book_url")
         chapter_nr = int(data.get("chapter_nr"))
         num_preloads = int(data.get("preload", 3))
+        req_text = None
 
         user_ip = request.remote_addr
         book_hash = hash(book_url) & 0xffffffff
@@ -104,10 +107,20 @@ def stream():
         if not book_url or not chapter_nr:
             return {"error": "Missing book_url or chapter_nr"}, 400
         
+        s3 = boto3.client('s3')  # ← this line uses EC2 IAM role automatically
+        BUCKET_NAME = 'novelverse-audio-storage-20260131'
+        
         task_chain = []
         
         for offset in range(num_preloads+1):  # current + preloads
             ch_nr = chapter_nr + offset
+            s3_key = get_s3_key(book_url, ch_nr)
+            try:
+                s3.head_object(Bucket=BUCKET_NAME, Key=s3_key)
+                continue
+            except Exception as e:
+                logger.info("cache missed Generating")
+
             chapter_url = get_chapter_url(book_url, ch_nr)
             text = scrape_novel_chapter(chapter_url)
 
@@ -115,8 +128,9 @@ def stream():
                 logger.warning(f"Failed to scrape chapter {ch_nr}")
                 continue  # skip bad chapter, don't fail whole chain
 
+            duration = (len(text.split()) / WPM) * 60
             task_id = str(uuid.uuid4())
-            task = Task(task_id, text, ch_nr, book_url)
+            task = Task(task_id, text, ch_nr, book_url, WPM, duration)
             task_chain.append(task)
 
         if not task_chain:
@@ -130,7 +144,11 @@ def stream():
 
         def generate():
             try:
-                yield f"data: {json.dumps({'status': 'started', 'chapter': chapter_nr})}\n\n"
+                task = task_chain_obj.tasks[0]
+                if task.ch != chapter_nr:
+                    logger.info("ch already generated")
+                    return 
+                yield f"data: {json.dumps({'status': 'started', 'chapter': task.ch})}\n\n"
 
                 duration = (len(task.text.split()) / WPM) * 60
                 yield f"data: {json.dumps({'status': 'audio-info', 'duration': duration, 'WPM': WPM, 'text': task.text})}\n\n"
@@ -177,7 +195,6 @@ def stream():
                 raise
             except Exception as e:
                 logger.error(f"Stream generator error: {e}")
-                print(e)
                 yield {f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"}, 500
             finally:
                 logger.info("Stream generator finished.")

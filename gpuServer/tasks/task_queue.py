@@ -38,11 +38,13 @@ class TaskChain:
 
 
 class Task:
-    def __init__(self, task_id, text, ch_nr, book_url, dtype='float32'):
+    def __init__(self, task_id, text, ch_nr, book_url, wpm, duration, dtype='float32'):
         self.task_id = task_id
         self.text = text
         self.ch = ch_nr
         self.book_url = book_url
+        self.wpm = wpm
+        self.duration = duration
         self.dtype = dtype
         self.response_queues = np.array([], dtype=dtype)
         self.done = False
@@ -170,13 +172,6 @@ def worker_function(request_queue, device,
             for task in task_chain.tasks:
                 
                 s3_key = get_s3_key(task.book_url, task.ch)
-                try:
-                    s3.head_object(Bucket=BUCKET_NAME, Key=s3_key)
-                    logger.info(f"Worker {worker_id}: Found cached audio for task {task.task_id} in S3.")
-                    task.mark_complete()
-                    continue  # Object exists, skip to next task
-                except Exception as e:
-                    logger.info(f"cache miss for task {task.task_id} in S3")
 
                 logger.info(f"Worker {worker_id}: Processing task {task.task_id} in chain {task_chain.chain_id}")
                 if task_chain.is_canceled() or task.is_canceled():
@@ -184,17 +179,15 @@ def worker_function(request_queue, device,
                     continue
                 try:
                     # Pass the task object itself to the TTSPipeline
-                    tts_pipeline = TTSPipeline(worker_id, dtype, sample_rate, block_size, stop_event, task, device)
+                    tts_pipeline = TTSPipeline(worker_id, dtype, block_size, sample_rate, stop_event, task, device)
 
                     for isFinal, chunk in tts_pipeline.generate_audio_chunks(task.text):
-
-                        logger.info(f"Worker {worker_id}: Generated chunk of size {len(chunk)} (isFinal={isFinal}) for task {task.task_id}")
 
                         if isFinal:
                             logger.info(f"Worker {worker_id}: Completed task {task.task_id}")
                             task.put_chunk(chunk)
                             task.mark_complete()
-                            opus_bytes = encode_opus(task.response_queues)
+                            opus_bytes = encode_opus(task.response_queues, task)
                             s3.put_object(
                                 Bucket=BUCKET_NAME,
                                 Key=s3_key,

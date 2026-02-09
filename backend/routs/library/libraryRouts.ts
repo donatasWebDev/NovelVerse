@@ -1,7 +1,5 @@
 import express, { Router } from 'express';
 import { protect } from '../../middleware/authMiddleware';
-import upload from '../../middleware/uploads'; // Assuming uploads.ts exports default
-
 import {
   addBook,
   getBookPage,

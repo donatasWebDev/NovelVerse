@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "axios": "^1.7.9",
+    "event-source-polyfill": "^1.0.31",
     "framer-motion": "^12.24.12",
     "howler": "^2.2.4",
     "js-cookie": "^3.0.5",

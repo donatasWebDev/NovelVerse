@@ -6,7 +6,6 @@
 
 # Node / React / Build artifacts
 **/node_modules/
-**/package-lock.json
 **/dist/
 **/build/
 frontend/.env*

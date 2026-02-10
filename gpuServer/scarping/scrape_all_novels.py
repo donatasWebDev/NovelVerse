@@ -106,7 +106,7 @@ def scrape_page(page_num):
     return added
 
 # MAIN CRAWL WITH REDUNDANCY
-max_pages = 500
+max_pages = 5000
 start_page = get_last_page() + 1  # Resume from next
 total = 0
 

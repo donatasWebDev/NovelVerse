@@ -259,6 +259,7 @@ export const getFavoriteBooks = async (req: AuthRequest, res: Response) => {
       res.status(200).json({ favoriteBooks: user.favoriteBooks })
     }
   } catch (error: any) {
+    console.error(error)
     res.status(500).json({ message: error.message })
   }
 }

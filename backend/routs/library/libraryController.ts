@@ -18,11 +18,15 @@ interface AuthRequest extends Request {
 
 const prisma = new PrismaClient()
 
-function escapeForContains(str: string): string {
+function normalizeString(str: string): string {
   return str
     .trim()
     .toLowerCase()
-    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // escape regex specials
+    // Keep only letters (a-z), numbers (0-9) and whitespace
+    .replace(/[^a-z0-9\s]/gi, '')
+    // Collapse multiple whitespaces into single space
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 export const addBook = async (req: Request, res: Response) => {
@@ -35,7 +39,7 @@ export const addBook = async (req: Request, res: Response) => {
 
     const formattedBook = {
       title: bookData.title?.trim() || 'Untitled',
-      titleNormalize: escapeForContains(title),
+      titleNormalize: normalizeString(title),
       author: bookData.author?.trim() || 'Unknown',
       bookURL: bookData.bookUrl.trim(),
       isComplete: !!bookData.isComplete,
@@ -79,7 +83,7 @@ export const addBooksBulk = async (req: Request, res: Response) => {
       try {
         const bookData = {
           title: raw.title?.trim() || 'Untitled',
-          titleNormalize: escapeForContains(title),
+          titleNormalize: normalizeString(raw.title),
           author: raw.author?.trim() || 'Unknown',
           bookURL: raw.bookUrl?.trim() || raw.bookURL?.trim(),
           isComplete: !!raw.isComplete,
@@ -139,7 +143,7 @@ export const getBookPage = async (req: Request, res: Response) => {
   let skip = page - 1
   const limit = 20
   skip = skip * limit
-  const safeQuery = escapeForContains(query)
+  const safeQuery = normalizeString(query)
   try {
     const books = await prisma.book.findMany({
       skip: skip,

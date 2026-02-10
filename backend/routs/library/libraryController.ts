@@ -7,6 +7,7 @@ import fs from 'fs'
 import path from 'path'
 import { format } from 'date-fns'
 import { request } from 'http'
+import { title } from 'process'
 
 const pyServer = process.env.PY_SERVER_URL || 'Test_env_value_pyserver'
 
@@ -14,48 +15,114 @@ interface AuthRequest extends Request {
   user?: User
   file?: Express.Multer.File
 }
+
 const prisma = new PrismaClient()
+
+function escapeForContains(str: string): string {
+  return str
+    .trim()
+    .toLowerCase()
+    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // escape regex specials
+}
 
 export const addBook = async (req: Request, res: Response) => {
   try {
-    console.log(req.body)
-    const bookData = {
-      title: req.body.title,
-      author: req.body.author || 'Unknown',
-      bookURL: req.body.bookUrl,
-      isComplete: req.body.isComplete || false,
-      categoryList: req.body.category || [],
-      numberOfChapters: req.body.numberOfChapters || 0,
-      coverImg: req.body.coverImg || null,
-      lastUpdated: req.body.lastUpdated || new Date().toISOString(), // Optional: add field if you want
+    const bookData = req.body // expect array of objects
+
+    if (!bookData) {
+      return res.status(400).json({ message: 'Expected array of books' })
     }
 
-    if (!bookData.bookURL) {
-      res.status(400).json({ message: 'bookURL is required' })
-      return
+    const formattedBook = {
+      title: bookData.title?.trim() || 'Untitled',
+      titleNormalize: escapeForContains(title),
+      author: bookData.author?.trim() || 'Unknown',
+      bookURL: bookData.bookUrl.trim(),
+      isComplete: !!bookData.isComplete,
+      categoryList: bookData.category || [],
+      numberOfChapters: Number(bookData.numberOfChapters) || 0,
+      coverImg:
+        bookData.coverImg?.trim() ||
+        'https://via.placeholder.com/300x450?text=No+Cover',
+      lastUpdated: bookData.lastUpdated || new Date().toISOString(),
     }
 
-    console.log('Processing book:', bookData.title)
-
-    // UPSERT: Insert if new, update if exists (by unique bookURL)
     const book = await prisma.book.upsert({
-      where: { bookURL: bookData.bookURL },
-      update: {
-        title: bookData.title,
-        author: bookData.author,
-        isComplete: bookData.isComplete,
-        categoryList: bookData.categoryList,
-        numberOfChapters: bookData.numberOfChapters,
-        coverImg: bookData.coverImg,
-        lastUpdated: bookData.lastUpdated, // If you add this field to schema
-      },
-      create: bookData,
+      where: { bookURL: formattedBook.bookURL },
+      update: { ...formattedBook },
+      create: formattedBook,
     })
 
-    res.status(200).json({ message: 'Book added/updated', book })
+    res.status(200).json({
+      message: `Processed ${book.title}`
+    })
   } catch (error: any) {
-    console.error('Error upserting book:', error)
-    res.status(500).json({ message: error.message || 'Server error' })
+    console.error(error)
+    res.status(500).json({ message: error.message })
+  }
+}
+
+export const addBooksBulk = async (req: Request, res: Response) => {
+  try {
+    const booksInput = req.body
+
+    if (!Array.isArray(booksInput) || booksInput.length === 0) {
+      return res
+        .status(400)
+        .json({ message: 'Request body must be a non-empty array of books' })
+    }
+
+    const books: any[] = []
+    let skipped = 0
+
+    for (const raw of booksInput) {
+      try {
+        const bookData = {
+          title: raw.title?.trim() || 'Untitled',
+          titleNormalize: escapeForContains(title),
+          author: raw.author?.trim() || 'Unknown',
+          bookURL: raw.bookUrl?.trim() || raw.bookURL?.trim(),
+          isComplete: !!raw.isComplete,
+          categoryList: Array.isArray(raw.category) ? raw.category : [],
+          numberOfChapters: Number(raw.numberOfChapters) || 0,
+          coverImg:
+            raw.coverImg?.trim() ||
+            'https://via.placeholder.com/300x450?text=No+Cover',
+          lastUpdated: raw.lastUpdated ? new Date(raw.lastUpdated) : null,
+        }
+
+        if (!bookData.bookURL) {
+          skipped++
+          continue
+        }
+
+        books.push(bookData)
+      } catch (err: any) {
+        skipped++
+        console.warn(
+          `Skipped book: ${raw.title || 'no title'} - ${err.message}`,
+        )
+      }
+    }
+
+    try {
+      const result = await prisma.book.createMany({
+        data: books,
+      })
+      res.status(200).json({
+        message: `Processed ${booksInput.length} books`,
+        inserted: result.count,
+        skipped: booksInput.length - result.count - skipped,
+        invalid: skipped,
+      })
+    } catch (error) {
+      throw error
+    }
+  } catch (error: any) {
+    console.error('Bulk import error:', error)
+    res
+      .status(500)
+      .json({ message: 'Bulk import failed', error: error.message })
   }
 }
 
@@ -72,11 +139,12 @@ export const getBookPage = async (req: Request, res: Response) => {
   let skip = page - 1
   const limit = 20
   skip = skip * limit
+  const safeQuery = escapeForContains(query)
   try {
     const books = await prisma.book.findMany({
       skip: skip,
       take: limit,
-      where: { title: { contains: query, mode: 'insensitive' } },
+      where: { titleNormalize: { contains: safeQuery, mode: 'insensitive' } },
     })
 
     const totalBooks = await prisma.book.count()
@@ -100,12 +168,12 @@ export const getBookPage = async (req: Request, res: Response) => {
 
 export const getBookInfo = async (req: Request, res: Response) => {
   try {
-    const idParam = req.params.id;
+    const idParam = req.params.id
 
-    const id = Array.isArray(idParam) ? idParam[0] : idParam;
+    const id = Array.isArray(idParam) ? idParam[0] : idParam
 
     if (!id) {
-      res.status(400).json({ message: 'Book ID is required' });
+      res.status(400).json({ message: 'Book ID is required' })
       return
     }
     const book = await prisma.book.findFirst({

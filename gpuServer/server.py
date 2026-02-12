@@ -35,7 +35,8 @@ INITIAL_BUFFER_DURATION_SECONDS = 20
 packet_size = 2048
 backlog_ratio = 0.1
 MIN_CHUNK_SIZE = BLOCK_SIZE * 2
-WPM = 160
+WPM = 187
+CPM = 820
 MAX_WORKERS = 10
 MAX_CHAINS_PER_USER = 1
 
@@ -148,9 +149,10 @@ def stream():
                 if task.ch != chapter_nr:
                     logger.info("ch already generated")
                     return 
+                
                 yield f"data: {json.dumps({'status': 'started', 'chapter': task.ch})}\n\n"
-
-                duration = (len(task.text.split()) / WPM) * 60
+                chars = len(task.text)
+                duration = chars / CPM * 60
                 yield f"data: {json.dumps({'status': 'audio-info', 'duration': duration, 'WPM': WPM, 'text': task.text})}\n\n"
 
                 sent_bytes = 0
@@ -185,6 +187,8 @@ def stream():
                         break
 
                     if is_done:
+                        duration_sec = round((len(full_buffer) / SAMPLE_RATE), 2)
+                        yield f"data: {json.dumps({'status': 'audio-info', 'duration': duration_sec, 'WPM': WPM, 'text': task.text})}\n\n"
                         yield f"data: {json.dumps({'status': 'complete'})}\n\n"
                         break
 

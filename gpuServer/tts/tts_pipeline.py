@@ -63,7 +63,16 @@ class TTSPipeline:
             if len(_buffer) > 0:
                 padded_block = np.pad(_buffer, (0, self.block_size - len(_buffer)),
                                     mode='constant', constant_values=0).astype(self.dtype)
-                yield (True, padded_block)
+                yield (False, padded_block)
+
+            silence = np.zeros(self.block_size, dtype=self.dtype)
+
+            for _ in range(3): 
+                yield (False, silence) #each block is 250ms
+
+            yield (True, silence)
+
+
 
             logging.info(f"Task {self.worker_id}: Finished generating all blocks for text.")
 

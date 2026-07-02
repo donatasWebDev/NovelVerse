@@ -199,7 +199,7 @@ def stream():
                 raise
             except Exception as e:
                 logger.error(f"Stream generator error: {e}")
-                yield {f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"}, 500
+                yield f"data: {json.dumps({'status': 'error', 'message': str(e)})}\n\n"
             finally:
                 logger.info("Stream generator finished.")
                 if user_chain_key:

@@ -70,21 +70,22 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
 
       if (!userData.id) {
         console.log("no user id found")
-        navigate("/login"); // Redirect if no user ID (meaning login failed)
+        navigate("/login");
       } else {
         console.log(userData)
-        setUser(userData); // Set user state if login is successful
+        setUser(userData);
       }
-      setLoading(false);
     }
+    setLoading(false);
     } catch (error: any) {
       console.log(error);
-      if (error.response.status === 401) {
+      if (error.response?.status === 401) {
          const token =  getToken();
          if (token) Cookies.remove("userToken")
          setUser(null)
          navigate("/login")
       }
+      setLoading(false);
     }
   };
 
@@ -156,7 +157,7 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
     catch (err) {
       console.log("error: ", err);
-      return true;
+      return false;
     }
   }
   const handleUserLogout = async () => {

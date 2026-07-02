@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
 import { PrismaClient } from '@prisma/client';
-import redisClient from '../utils/redisClient';
+import {getRedisClient} from '../utils/redisClient';
 
 interface AuthRequest extends Request {
   user?: {
@@ -21,6 +21,8 @@ const USER_CACHE_TTL = 60 * 15; // 15 minutes
 const protect = async (req: AuthRequest, res: Response, next: NextFunction) => {
   let token: string | undefined;
 
+  const redis =  await getRedisClient()
+
   if (req.headers.authorization?.startsWith('Bearer')) {
     token = req.headers.authorization.split(' ')[1];
   }
@@ -34,7 +36,7 @@ const protect = async (req: AuthRequest, res: Response, next: NextFunction) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET || '') as { id: string };
 
     const cacheKey = `${USER_CACHE_PREFIX}${decoded.id}`;
-    const cachedUser = await redisClient.get(cacheKey);
+    const cachedUser = await redis.get(cacheKey);
 
     let userData: AuthRequest['user'];
 
@@ -53,7 +55,7 @@ const protect = async (req: AuthRequest, res: Response, next: NextFunction) => {
          return;
       }
 
-      await redisClient.setEx(cacheKey, USER_CACHE_TTL, JSON.stringify(userData));
+      await redis.setEx(cacheKey, USER_CACHE_TTL, JSON.stringify(userData));
       console.log(`Cache miss → stored user ${decoded.id}`);
     }
 

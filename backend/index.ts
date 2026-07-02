@@ -1,17 +1,24 @@
 import express from 'express'
+import 'music-metadata';
 import { Request, Response, NextFunction } from 'express'
 import cors from 'cors'
 import mongoose from 'mongoose'
 import { createServer } from 'node:http'
-import path from 'path'
 import bodyParser from 'body-parser'
 import dotenv from 'dotenv'
-import client from './utils/redisClient'
-import { sessionMiddleware } from './middleware/session';
+import { initSessionMiddleware } from './middleware/session'
+
+import {getRedisClient, redisMiddleware} from "./utils/redisClient"
 
 import userRouter from './routs/user/userRouts'
 import libraryRouter from './routs/library/libraryRouts'
 import streamRouter from './routs/stream/streamRoute'
+
+declare module 'express' {
+  interface Request {
+    redis?: any;
+  }
+}
 
 dotenv.config()
 const app = express()
@@ -24,6 +31,7 @@ const allowedOrigins = [
   'https://novel-verse-three.vercel.app',
   'http://localhost:5173',
 ]
+
 
 app.use(
   cors({
@@ -52,13 +60,24 @@ server.listen(PORT, () => {
   console.log(`server running at localhost:${PORT}`)
 })
 
-// app.use(bodyParser.json());
-app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
+const initMiddleware = async () => {
+  app.use(await initSessionMiddleware());
+}
+initMiddleware()
+
+
+app.use((err: Error,req: Request,res: Response, next: NextFunction) => {
   console.error(err.stack)
   res.status(500).send('Something broke!')
 })
 
-app.use(sessionMiddleware); // Use session middleware
+
+app.use(async (req: Request, res: Response, next: NextFunction) => {
+    const redisClient = await getRedisClient();
+    req.redis = redisClient; // attach to request object
+    next();
+})
+
 
 const url: string | undefined = process.env.DATABASE_URL
 
@@ -66,6 +85,8 @@ if (!url) {
   console.error('DATABASE_URL is not defined in .env file')
   process.exit(1) // Exit the process
 }
+
+
 
 mongoose.set('strictQuery', false)
 mongoose
@@ -79,8 +100,8 @@ mongoose
 
 app.use(bodyParser.json())
 
-app.get('/health', async (_req: Request, res: Response) => {
-  const redisStatus = client.isOpen ? 'connected' : 'disconnected'
+app.get('/health', async (req: Request, res: Response) => {
+  const redisStatus = await req.redis.ping() ? 'connected' : 'disconnected'
   const mongoStatus = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
   res.status(200).json({
     status: 'OK',
@@ -89,7 +110,6 @@ app.get('/health', async (_req: Request, res: Response) => {
   })
 })
 
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')))
 app.use('/api/user', userRouter)
 app.use('/api/lib', libraryRouter)
 app.use('/api/stream', streamRouter)

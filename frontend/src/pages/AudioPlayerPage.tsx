@@ -13,6 +13,7 @@ import {
   X,
   Flashlight,
 } from "lucide-react";
+import { Toaster, toast } from "sonner";
 // import { useNavigate } from "react-router-dom";
 import { ChDropDown } from "../components/chDropDown"
 import Player, { PlayerCompRef } from "../components/Player"
@@ -20,9 +21,10 @@ import { useSocketContext } from "../uttils/socketContext";
 import { useAuth } from "../uttils/AuthContex";
 import { useLibrary } from "../uttils/LibraryContext";
 import { Link } from "react-router-dom";
-import { a, audio } from "framer-motion/client";
+import { a, audio, span } from "framer-motion/client";
 import { VolumeButton } from "../components/VolumeBtn"
-// import { useLibrary } from "../uttils/LibraryContext";
+
+
 
 interface AudioPlayerPageProps {
   book: BookCurrent;
@@ -32,8 +34,7 @@ export const AudioPlayerPage = ({
   book,
   chapter
 }: AudioPlayerPageProps) => {
-  // const navigate = useNavigate()
-  // const {getChpaterAudioCurrent} = useLibrary()!
+
   const [showText, setShowText] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
@@ -47,22 +48,19 @@ export const AudioPlayerPage = ({
   const [streamKey, setStreamKey] = useState<string | null>(null)
   const [chapterNr, setChapterNr] = useState<number>(chapter)
   const [playerKey, setPlayerKey] = useState<string>('');
-  const { user } = useAuth()
-  const { getStreamKey, verifyStreamKey } = useLibrary()!
+
   const [lastChunkSentIndex, setLastChunkSentIndex] = useState(-1);
   const [isFirstLoad, setIsFirstLoad] = useState(true)
   const [volume, setVolume] = useState(0.8);
   const [isMuted, setIsMuted] = useState(false);
   const [showVolumeMenu, setShowVolumeMenu] = useState(false)
 
+  const { getStreamKey, verifyStreamKey } = useLibrary()!
+  const { user } = useAuth()!
+  const { connect, isConnected, messages, audio: socketAudioChunks, clearAudioBuffer, error } = useSocketContext()
 
 
-  const { connect, isConnected, messages, startJob, audio: socketAudioChunks, disconnect } = useSocketContext()
 
-  const safetyTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const [retries, setRetries] = useState(0);
-  const MAX_RETRIES = 2; // e.g. initial + 2 retries
-  const QUEUE_SAFETY_TIMEOUT = 20 * 1000; // 20s — tune to ~1.5× your typical worst-case delay
 
 
 
@@ -94,9 +92,9 @@ export const AudioPlayerPage = ({
       if (!isConnected && streamKey && user && isFirstLoad) {
         console.log("Connecting to socket with streamKey:", streamKey, "and userId:", user.id);
         setIsFirstLoad(false)
-        startJobWithSafetyNet(streamKey, user.id, book.bookURL, chapter.toString())
+        connect(streamKey, user.id, book.bookURL, chapter.toString());
       }
-      // connect(streamKey, user.id, book.bookURL, chapter.toString());
+
 
     }
     start()
@@ -111,7 +109,7 @@ export const AudioPlayerPage = ({
     console.log(`Chapter switched – forcing Player re-mount with new key: ${newKey}`);
     setPlayerKey(newKey);
     setIsFirstLoad(true)
-    setPlaybackSpeed(book.speed)
+    setPlaybackSpeed(playbackSpeed || book.speed)
     setLastChunkSentIndex(-1);
     const currentChapter = {
       ...book,
@@ -127,61 +125,49 @@ export const AudioPlayerPage = ({
   }, [chapter, book])
 
   useEffect(() => {
-
     console.log("messages Updated", messages)
 
+    if (error?.message === "starting") {
+      toast.warning((<span className="text-lg font-bold">Server is starting up…</span>), {
+        description: (
+            <div className="text-sm font-semibold">
+              This usually takes <span className="font-semibold">1–5 minutes</span>.
+              <br />
+              <span className="font-light">We'll let you know when it's ready.</span>
+            </div>
+            ),
+        duration: 2* 60 * 1000, //2min
+        id: "server-starting"
+      })
+      return
+    }
 
-    if (messages && messages.length > 0 && !chapterInfo) {
+    if (error?.message && error.message.length > 0) {
+      toast.error(error?.message)
+    }
+
+    if (messages && messages.length > 0 && !error) {
       let info = messages.find((m) => m.status === "audio-info")
+      toast.dismiss("server-starting")
+      console.log("chapter Info", info)
       if (info) {
         setChapterInfo(info)
       }
     }
-
-    if (messages?.some(m => m.status === "started") && messages.length > 0) {
-      if (safetyTimerRef.current) {
-        console.log("Progress detected — clearing safety timer");
-        clearTimeout(safetyTimerRef.current);
-        safetyTimerRef.current = null;
-        setRetries(0);
-      }
-    }
-  }, [messages])
+  }, [messages, error])
 
   useEffect(() => {
+
+    if (socketAudioChunks.length > 0 && !isConnected) {
+      clearAudioBuffer()
+    }
+
     if (socketAudioChunks.length > 2 && !audioLoaded) {
       setIsPlaying(true);
       setAudioLoaded(true);
     }
   }, [socketAudioChunks])
 
-
-  const startJobWithSafetyNet = async (streamKey: string, userId: string, bookURL: string, chapter: string) => {
-    try {
-      const newJobId = await startJob(streamKey, userId, bookURL, chapter);
-      connect(newJobId);
-
-      // Single timeout: if no progress after X seconds, cancel & retry once
-      safetyTimerRef.current = setTimeout(() => {
-        console.log(`No progress after ${QUEUE_SAFETY_TIMEOUT / 1000}s — cancelling & retrying`);
-
-        if (newJobId) {
-          disconnect(newJobId);
-        }
-
-        if (retries < MAX_RETRIES) {
-          startJobWithSafetyNet(streamKey, userId, bookURL, chapter); // recursive call, but only once or twice max
-          setRetries(prev => prev + 1)
-        }
-
-
-      }, QUEUE_SAFETY_TIMEOUT);
-    }
-    catch (err) {
-      console.log(err)
-    }
-
-  };
 
   const handlePlayerRequestsMoreData = useCallback(() => {
     // Check if there are new chunks available in socketAudioChunks
@@ -190,6 +176,7 @@ export const AudioPlayerPage = ({
     if (lastChunkSentIndex >= socketAudioChunks.length) {
       console.warn(`Index out of sync with chunks (${lastChunkSentIndex} >= ${socketAudioChunks.length}) – resetting to -1`);
       setLastChunkSentIndex(-1);  // Auto-fix if fucked
+      // setTimeout( () => clearAudioBuffer(), 3 * 1000) // let the buffer handle left over chunks
     }
 
     if (socketAudioChunks.length > lastChunkSentIndex + 1) {

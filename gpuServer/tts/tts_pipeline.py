@@ -3,6 +3,7 @@ import kokoro
 import logging
 import numpy as np
 import threading
+import torchaudio
 
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(threadName)s - %(levelname)s - %(message)s')
@@ -46,8 +47,11 @@ class TTSPipeline:
                     logging.info(f"Task {self.worker_id}: Cancellation detected. Stopping generation.")
                     break
 
+                resampler = torchaudio.transforms.Resample(orig_freq=24000, new_freq=self.sample_rate)
+
                 raw_chunk = audio_tensor.cpu().numpy().astype(self.dtype)
-                _buffer = np.concatenate((_buffer, raw_chunk))
+                resampled_chunk = resampler(torch.from_numpy(raw_chunk).unsqueeze(0)).squeeze(0).numpy()
+                _buffer = np.concatenate((_buffer, resampled_chunk))
 
                 # Flush buffer in blocks, check cancellation at every iteration
                 while len(_buffer) >= self.block_size:
@@ -59,7 +63,16 @@ class TTSPipeline:
             if len(_buffer) > 0:
                 padded_block = np.pad(_buffer, (0, self.block_size - len(_buffer)),
                                     mode='constant', constant_values=0).astype(self.dtype)
-                yield (True, padded_block)
+                yield (False, padded_block)
+
+            silence = np.zeros(self.block_size, dtype=self.dtype)
+
+            for _ in range(3): 
+                yield (False, silence) #each block is 250ms
+
+            yield (True, silence)
+
+
 
             logging.info(f"Task {self.worker_id}: Finished generating all blocks for text.")
 

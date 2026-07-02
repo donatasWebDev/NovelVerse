@@ -80,7 +80,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     } catch (error: any) {
       console.log(error);
       if (error.response.status === 401) {
-         Cookies.remove("userToken")
+         const token =  getToken();
+         if (token) Cookies.remove("userToken")
          setUser(null)
          navigate("/login")
       }

@@ -15,6 +15,7 @@ backend/.env
 #local_only
 py_server/
 test/
+serverless/
 
 # Python cache & outputs
 **/__pycache__/

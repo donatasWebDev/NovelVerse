@@ -1,129 +1,71 @@
-# NovelVerse: Real-Time Full-Stack Audiobook Streaming Application
+# NovelVerse — Real-Time Web Novel Audiobook Streaming
 
 *An In-Depth Case Study*
 
-This case study explores **NovelVerse**, a personal full-stack web application that scrapes web novels, generates high-quality audiobooks using text-to-speech (TTS), and streams them in real-time. Designed as a portfolio project, it highlights expertise in hybrid language architecture, real-time systems, web scraping, audio processing, and secure user management.
-
-### NovelVerse — Real-Time Web Novel Audiobook Streaming App
-
 [![NovelVerse Demo](https://img.youtube.com/vi/o9cOABC1nu0/maxresdefault.jpg)](https://www.youtube.com/watch?v=o9cOABC1nu0)
+*Click to watch: live scraping → GPU synthesis → seamless streaming*
 
-A full-stack application that turns web novels into audiobooks on demand. It scrapes chapters in real-time, generates natural-sounding speech using a GPU-accelerated neural TTS engine, and streams audio seamlessly over WebSockets.
+NovelVerse turns web novels into instant audiobooks on demand. It scrapes chapters live, generates natural-sounding audio with GPU-accelerated neural TTS (Kokoro), caches efficiently in **AWS S3**, and streams low-latency audio via **Server-Sent Events** (SSE) — all proxied securely through Express.
+
+Designed as a portfolio showcase for hybrid stacks, real-time binary streaming, cost-optimized cloud infra, and smart prefetching.
 
 **Key Features**
-- On-demand scraping and real-time audio generation
-- Low-latency streaming with adaptive buffering
-- Secure JWT authentication and private user libraries
-- Progress tracking across sessions
-- Hybrid architecture combining React, Node.js, and Python services
 
-## Project Overview
+- On-demand scraping + real-time TTS generation
+- Adaptive low-latency SSE streaming with client buffering
+- Secure JWT auth + private libraries with progress tracking
+- Intelligent S3 caching + proactive 2-chapter preload
+- Cost-efficient AWS spot GPU (auto-stops after 1h idle)
 
-NovelVerse lets users discover web novels, build private libraries, track reading progress, and listen to chapters as natural-sounding audio generated on-demand. Content is scraped in real-time, converted via a neural TTS engine, and streamed over WebSockets for low-latency playback—no pre-generated files or long waits required.
+## Quick Tech Overview
 
-**Key goals**
+- **Frontend** — React + Vite + TypeScript, Tailwind, Framer Motion, MediaSource Extensions
+- **Backend** — Node.js + Express + TypeScript, Prisma (MongoDB), JWT + Redis sessions
+- **Heavy Compute** — Python (asyncio + threads), Kokoro TTS (PyTorch GPU), cloudscraper
+- **Streaming** — HTML SSE (proxied via Express), audio stored as Opus → streamed as MP3
+- **Cloud** — Vercel (frontend/backend), AWS S3 (cache), AWS spot GPU instance (RunPod-style)
+- **Storage** — MongoDB Atlas (users/books/progress), S3 (audio artifacts)
 
-- Instant scraping and streaming for seamless playback
-- GPU acceleration for efficient, high-quality voice synthesis
-- Secure authentication and personalized progress tracking
+## How It Works (Core Flow)
 
-The app runs locallw with Docker and is being prepared for cloud deployment (e.g., RunPod for scalable GPU support).
+1. User picks chapter → frontend requests short-lived stream token
+2. Backend verifies → frontend opens SSE connection (proxied via Express)
+3. Server checks S3 cache (hash-based key: `audio/{book-hash}/chapter_N-v1.opus`)
+   - **Hit** → streams cached MP3 (<3s start)
+   - **Miss** → wakes GPU spot instance if stopped → scrapes → TTS → streams live while uploading to S3 (~5s start)
+4. While playing current chapter → **preloads next 2 chapters** in background → caches them for instant switch
+5. Client appends chunks to MediaSource buffer → smooth playback with adaptive buffering
+6. Progress auto-saved to DB every few seconds
 
-## Technology Tree
+**GPU Lifecycle**
 
-```
-Root Application
-├── Languages & Runtime
-│   ├── TypeScript (frontend & backend)
-│   └── Python 3.10+ (real-time processing)
-├── Containerization
-│   └── Docker (frontend, backend, Python service)
-└── Configuration
-    └── .env files (DATABASE_URL, VITE_WS_URL, ports)
+- AWS spot instance stops after ~1 hour idle (CloudWatch CPU monitoring)
+- Cold start ~5 min; handles ~10 concurrent threads (1 chain per user)
+- Chapter generation: 1–2 min per thread → frees up quickly
 
-Frontend Layer
-├── Framework: React + Vite
-├── State & Routing: React Context + React Router
-├── Real-Time: Native WebSocket client (useSocket hook)
-└── Playback: Web Audio API (Player component, base64 MP3 decoding)
+**Performance Stats**
 
-Backend Layer
-├── Server: Node.js + Express (TypeScript)
-├── Authentication: JWT + bcrypt
-├── ORM: Prisma (MongoDB)
-└── Database: MongoDB (users, books, favorites, progress)
+- Uncached chapter start: ~5 seconds
+- Cached chapter start: <3 seconds
+- Repeat plays / preloaded chapters: near-instant
 
-Python Service Layer
-├── Runtime: asyncio + threading
-├── WebSocket Server: websockets library
-├── Scraping: requests + BeautifulSoup
-├── TTS Engine: Kokoro (neural, GPU via torch.cuda)
-├── Audio Processing: numpy (buffering) + pydub (MP3 export)
-└── Concurrency: task_queue (multi-worker threads, per-socket queues)
+## Challenges & Smart Solutions
 
-Cross-Cutting
-├── Protocols: HTTP (API) + WebSocket (streaming)
-└── Performance: GPU auto-detection + adaptive buffering
-```
+| Challenge                | Solution                                          |
+| ------------------------ | ------------------------------------------------- |
+| GPU cost & idle waste    | AWS spot + 1h auto-stop via CloudWatch            |
+| First-play latency       | S3 cache check + concurrent stream/upload         |
+| Chapter switching delays | Preload & cache next 2 chapters during playback   |
+| Scraping reliability     | Modular parsers + cloudscraper for CF bypass      |
+| Browser compatibility    | Store Opus (efficient) → stream MP3 (universal)  |
+| Security on GPU access   | Express proxy with rate limiting + JWT validation |
 
-## System Architecture
+## Future Ideas
 
-A loosely coupled, microservices-style design:
+- Multi-GPU autoscaling + distributed queue
+- Voice/speed variants in S3
+- CloudFront for faster global cache hits
+- Sequence numbers + recovery for dropped connections
+- Full monitoring dashboard (cache hits, GPU usage, wake events)
 
-- **Frontend ↔ Backend**: HTTP REST for authentication and library data
-- **Frontend ↔ Python Server**: Direct WebSocket for real-time audio streaming
-- **Python Server ↔ Backend**: HTTP verification endpoint for secure socket handshakes
-
-This keeps the UI responsive while offloading heavy computation to Python.
-
-## Key Workflows
-
-### Database & Library Workflow
-
-1. User registers/logs in → `POST /api/user/*` → Prisma creates/finds record → JWT issued
-2. Fetch library → `GET /api/lib/books` → Prisma query with relations → Personalized book list returned
-3. Save progress → Frontend POST → Prisma upserts `LatestRead` model
-
-### Real-Time Streaming Workflow
-
-1. Player page loads → Frontend opens WebSocket and sends streamKey + userId
-2. Python server verifies via `POST /api/lib/verify`
-3. User requests chapter → Frontend sends `"play <url> <chapter>"`
-4. Python scrapes content → Queues TTS task → Workers generate audio (Kokoro on GPU/CPU)
-5. Audio buffered (20s initial warmup) → Converted to MP3 chunks → Base64-encoded → Sent over WebSocket
-6. Frontend decodes and plays; supports `"to <seconds>"` (seek) and `"stop"`
-
-### TTS Generation Workflow
-
-1. Scrape and clean chapter text
-2. Kokoro pipeline splits text and synthesizes audio tensors
-3. Convert tensors → numpy arrays → pydub MP3 export (requires ffmpeg)
-4. Chunk, encode, and stream with metadata (duration, WPM)
-
-GPU acceleration significantly reduces inference time compared to CPU fallback.
-
-## End-to-End User Flow
-
-1. **Login** → JWT stored in context
-2. **Browse library** → API fetch → Navigate to player page (`/play/:id/:chapter`)
-3. **Connect WebSocket** → Authenticated handshake
-4. **Request chapter** → Scraping + TTS begins
-5. **Stream & play** → Real-time audio with smooth buffering
-6. **Finish session** → Progress automatically synced to database
-
-## Challenges & Solutions
-
-| Challenge                 | Solution                                   |
-| ------------------------- | ------------------------------------------ |
-| TTS latency on CPU        | GPU auto-detection + chunked streaming     |
-| Scraping fragility        | Modular parsers (easy updates)             |
-| Concurrent streams        | Threaded workers + per-connection queues   |
-| Browser autoplay policies | User-initiated playback via interactive UI |
-
-## Future Enhancements
-
-- Dynamic worker scaling for more concurrent users
-- Additional voice options and speed controls
-- Full cloud deployment with monitoring
-- Comprehensive testing (unit, integration, E2E)
-
+NovelVerse combines real-time ML, thoughtful caching/prefetching, and production-grade cloud cost control — all in a clean full-stack personal project.

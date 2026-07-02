@@ -279,31 +279,23 @@ gpuServer/
 | 2026-07-02 | #1 — Audit | Full codebase exploration (frontend, backend, gpuServer). Created this file. Identified 10 critical bugs, 7-phase roadmap. | Phase 1: Fix P0 bugs (B1–B5, B7–B8) |
 | 2026-07-02 | #2 — Planning | Agreed work line: P0 airlock (1–2 sessions) → structure → types/tests → CI. Documented resume instructions. | Phase 1: start P0 fixes |
 | 2026-07-02 | #3 — P0 Fixes | Fixed B1–B5, B7, B8. Backend builds clean. Removed dead imports in libraryController. Registration now returns token not hash. | Phase 2: TypeScript baseline |
-| 2026-07-02 | #4 — Dev tooling | Added `scripts/dev-start.*`, health checks with retry, `.env.example`. Health check: 3/3 pass. P0 fixes committed on separate branches. | Merge branches → manual play test |
+| 2026-07-02 | #4 — Dev tooling | Added `scripts/dev-start.*`, health checks with retry, `.env.example`. Health check: 3/3 pass. P0 fixes committed on separate branches. | Open PRs on GitHub |
+| 2026-07-02 | #5 — Cleanup | Killed stale dev servers (weather-app on :5173, NovelVerse on :5174/:5000). Removed legacy `serverless/`. Pushed branches for PR review. | Review & merge PRs |
 
-## Git Branches (P0 work)
+## Git Branches (P0 work) — open PRs, do NOT merge locally
 
-| Branch | Commit focus |
-|--------|----------------|
-| `chore/dev-startup-scripts` | Dev start/stop/healthcheck scripts + `.env.example` |
-| `fix/p0-backend-bootstrap` | `backend/index.ts` bootstrap order |
-| `fix/p0-backend-library` | `titleNormalize` bug + dead imports |
-| `fix/p0-backend-register` | Registration returns JWT, not password hash |
-| `fix/p0-frontend-contexts` | Auth loading + `useLocation` fixes |
-| `fix/p0-gpu-sse` | SSE error yield fix |
-| `docs/refactor-progress` | This progress file |
+| Branch | Status | Open PR |
+|--------|--------|---------|
+| `chore/dev-startup-scripts` | merged to `main` | — |
+| `chore/remove-legacy-serverless` | merged to `main` | — |
+| `fix/p0-backend-bootstrap` | pushed | [Create PR](https://github.com/donatasWebDev/NovelVerse/compare/main...fix/p0-backend-bootstrap?expand=1) |
+| `fix/p0-backend-library` | pushed | [Create PR](https://github.com/donatasWebDev/NovelVerse/compare/main...fix/p0-backend-library?expand=1) |
+| `fix/p0-backend-register` | pushed | [Create PR](https://github.com/donatasWebDev/NovelVerse/compare/main...fix/p0-backend-register?expand=1) |
+| `fix/p0-frontend-contexts` | pushed | [Create PR](https://github.com/donatasWebDev/NovelVerse/compare/main...fix/p0-frontend-contexts?expand=1) |
+| `fix/p0-gpu-sse` | pushed | [Create PR](https://github.com/donatasWebDev/NovelVerse/compare/main...fix/p0-gpu-sse?expand=1) |
+| `docs/refactor-progress` | pushed | [Create PR](https://github.com/donatasWebDev/NovelVerse/compare/main...docs/refactor-progress?expand=1) |
 
-**Merge order (into `main`):**
-```bash
-git checkout main
-git merge chore/dev-startup-scripts
-git merge fix/p0-backend-bootstrap
-git merge fix/p0-backend-library
-git merge fix/p0-backend-register
-git merge fix/p0-frontend-contexts
-git merge fix/p0-gpu-sse
-git merge docs/refactor-progress
-```
+> Repo canonical URL: `https://github.com/donatasWebDev/NovelVerse`
 
 **Start dev (Windows):** `.\scripts\dev-start.ps1`  
 **Start dev (Git Bash):** `./scripts/dev-start.sh`  
@@ -365,4 +357,4 @@ git merge docs/refactor-progress
 
 ---
 
-*Last updated: 2026-07-02 — Session #4*
+*Last updated: 2026-07-02 — Session #5*

@@ -1,13 +1,6 @@
 import { Response, Request } from 'express'
-import { PrismaClient, User, Book, Prisma } from '@prisma/client'
-import mongoose from 'mongoose'
-import axios from 'axios'
+import { PrismaClient, User } from '@prisma/client'
 import jwt from 'jsonwebtoken'
-import fs from 'fs'
-import path from 'path'
-import { format } from 'date-fns'
-import { request } from 'http'
-import { title } from 'process'
 
 const pyServer = process.env.PY_SERVER_URL || 'Test_env_value_pyserver'
 
@@ -39,7 +32,7 @@ export const addBook = async (req: Request, res: Response) => {
 
     const formattedBook = {
       title: bookData.title?.trim() || 'Untitled',
-      titleNormalize: normalizeString(title),
+      titleNormalize: normalizeString(bookData.title ?? 'Untitled'),
       author: bookData.author?.trim() || 'Unknown',
       bookURL: bookData.bookUrl.trim(),
       isComplete: !!bookData.isComplete,

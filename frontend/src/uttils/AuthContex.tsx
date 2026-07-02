@@ -140,7 +140,8 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
         password: registerInfo.password,
 
       });
-      if (res.data.token !== "" && res.data.token){
+      if (res.data.token) {
+        Cookies.set("userToken", res.data.token);
         const userData: UserType = {
           email: res.data.email,
           name: res.data.name,
@@ -149,10 +150,10 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
           avatarUrl: res.data.avatarUrl,
         };
         setUser(userData);
-
         navigate("/");
-
+        return true;
       }
+      return false;
 
     }
     catch (err) {

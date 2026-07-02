@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Home, Search, Library, Play } from "lucide-react";
 import { UserProfile } from "./UserProfile";
@@ -8,8 +8,8 @@ import { useLibrary } from "../uttils/LibraryContext.tsx";
 import { NovelVerseLogo } from "./ScalableLogo.tsx"
 import { BookCurrent } from "../types.ts";
 export const SideNav = () => {
-  const { user } = useAuth()!
-  const { getCurrentBook } = useLibrary()!
+  const { user } = useAuth()
+  const { getCurrentBook } = useLibrary()
   const [book, setBook] = useState<BookCurrent>();
   useEffect(() => {
     let book = getCurrentBook();

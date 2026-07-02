@@ -1,14 +1,14 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useLibrary } from "../uttils/LibraryContext";
 import { useParams } from "react-router-dom";
 import { AudioPlayerPage } from "../pages/AudioPlayerPage";
-import { Book, BookCurrent } from "../types";
+import { BookCurrent } from "../types";
 
 export const PlayerMiddle = () => {
     const { p_id } = useParams();
     const { nr } = useParams();
     let chapter = nr
-    const {getCurrentBook, handleSetCurrentBook, getBookById } = useLibrary()!
+    const { getBookById, handleSetCurrentBook } = useLibrary()
     const [book, setBook] = useState<BookCurrent | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -26,7 +26,7 @@ export const PlayerMiddle = () => {
         //     return
         // }
         if (p_id) {
-            const newBook: any = await getBookById(p_id)
+            const newBook = await getBookById(p_id)
             console.log("new book", newBook)
             if (!newBook) {
                 setLoading(false)

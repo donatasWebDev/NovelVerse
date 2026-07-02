@@ -8,14 +8,13 @@ import InfiniteScroll from "react-infinite-scroll-component";
 import { AudioBookCard } from "../components/AudioBookCard";
 
 export const SearchPage = () => {
-  const { library, fetchLibrary, handleGetFavoriteBooks } = useLibrary()!;
+  const { library, fetchLibrary, handleGetFavoriteBooks } = useLibrary();
   const [books, setBooks] = useState<Book[]>([]);
   const [favoriteBooks, setFavoriteBooks] = useState<Book[] | null>(null);
   const [page, setPage] = useState<number>(getCurrentPage());
   const [hasMore, setHasMore] = useState(true);
-  const { user } = useAuth()!;
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [totalBooks, setTotalBooks] = useState<number | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const navigate = useNavigate();
   const limit = 20;
@@ -43,7 +42,6 @@ export const SearchPage = () => {
       }
 
       setHasMore(library.books.length === limit);
-      setTotalBooks(library.totalBooks || null);
     }
   }, [library, searchQuery]);
 

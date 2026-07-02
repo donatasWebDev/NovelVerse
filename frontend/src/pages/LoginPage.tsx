@@ -1,13 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { useAuth } from "../uttils/AuthContex";
-import { Link } from "react-router-dom"
-import { error } from "console";
 import { LoginInfo } from "../types";
 
 
 
 export const LoginPage = () => {
-  const { handleLogin } = useAuth()!;
+  const { handleLogin } = useAuth();
   const [loginInfo, setLoginInfo] = useState<LoginInfo>({
     email: {
       text: "",
@@ -65,28 +63,7 @@ export const LoginPage = () => {
       [field]: { ...prev[field], err: message },
     }));
 
-  const validatePassword = (password: string): string => {
-    if (!password.trim()) {
-      return "Password is required";
-    }
 
-    if (password.length < 8) {
-      return "Password must be at least 8 characters long";
-    }
-
-    if (!/[A-Z]/.test(password)) {
-      return "Password must contain at least one uppercase letter";
-    }
-
-    if (!/[a-z]/.test(password)) {
-      return "Password must contain at least one lowercase letter";
-    }
-
-    if (!/[0-9]/.test(password)) {
-      return "Password must contain at least one number";
-    }
-    return ""
-  }
 
   // if (!handleLogin) {
   //   // Handle case where context is not available

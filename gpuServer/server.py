@@ -14,7 +14,7 @@ import boto3
 
 # Import your real modules (adjust paths)
 from tts.tts_pipeline import TTSPipeline
-from tasks.task_queue import TaskChain, TaskQueue, worker_function, Task
+from tasks.task_queue import TaskChain, TaskQueue, worker_function, Task, MAX_WORKERS
 from scarping.scrape import get_chapter_url, scrape_novel_chapter
 from caching.cache_opum import get_s3_key
 
@@ -37,7 +37,6 @@ backlog_ratio = 0.1
 MIN_CHUNK_SIZE = BLOCK_SIZE * 2
 WPM = 187
 CPM = 820
-MAX_WORKERS = 10
 MAX_CHAINS_PER_USER = 1
 
 r = None

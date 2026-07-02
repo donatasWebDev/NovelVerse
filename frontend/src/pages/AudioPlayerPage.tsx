@@ -10,10 +10,8 @@ import {
   ChevronDown,
   SkipForward,
   SkipBack,
-  X,
-  Flashlight,
 } from "lucide-react";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner";
 // import { useNavigate } from "react-router-dom";
 import { ChDropDown } from "../components/chDropDown"
 import Player, { PlayerCompRef } from "../components/Player"
@@ -21,7 +19,6 @@ import { useSocketContext } from "../uttils/socketContext";
 import { useAuth } from "../uttils/AuthContex";
 import { useLibrary } from "../uttils/LibraryContext";
 import { Link } from "react-router-dom";
-import { a, audio, span } from "framer-motion/client";
 import { VolumeButton } from "../components/VolumeBtn"
 
 
@@ -46,7 +43,7 @@ export const AudioPlayerPage = ({
   const [loading, setLoading] = useState<boolean>(true);
   const [chapterInfo, setChapterInfo] = useState<any>(null)
   const [streamKey, setStreamKey] = useState<string | null>(null)
-  const [chapterNr, setChapterNr] = useState<number>(chapter)
+  const [chapterNr] = useState<number>(chapter)
   const [playerKey, setPlayerKey] = useState<string>('');
 
   const [lastChunkSentIndex, setLastChunkSentIndex] = useState(-1);
@@ -55,8 +52,8 @@ export const AudioPlayerPage = ({
   const [isMuted, setIsMuted] = useState(false);
   const [showVolumeMenu, setShowVolumeMenu] = useState(false)
 
-  const { getStreamKey, verifyStreamKey } = useLibrary()!
-  const { user } = useAuth()!
+  const { getStreamKey, verifyStreamKey } = useLibrary()
+  const { user } = useAuth()
   const { connect, isConnected, messages, audio: socketAudioChunks, clearAudioBuffer, error } = useSocketContext()
 
 
@@ -413,7 +410,6 @@ export const AudioPlayerPage = ({
               setShowVolumeMenu(true)
             }}>
             <VolumeButton
-              ref={playerRef}
               volume={isMuted ? 0 : volume}
               isMuted={isMuted}
               canShowSlider={showVolumeMenu}

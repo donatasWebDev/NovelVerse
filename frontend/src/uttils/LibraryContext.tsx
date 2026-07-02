@@ -30,10 +30,11 @@ interface LibraryContextType {
   getBookById: (id: string) => Promise<Book | undefined>;
   handleSetCurrentBook: (book: Book) => BookCurrent;
   getCurrentBook: () => BookCurrent | null;
-  getStreamKey: () => Promise<string> | null,
-  verifyStreamKey: (streamKey: string, id: string) => Promise<any> | null,
+  favoriteBook?: FavoriteBook[]
+  getStreamKey: () => Promise<string | null | undefined>
+  verifyStreamKey: (streamKey: string, id: string) => Promise<boolean | undefined>
   toggleFavoriteBook: (id: string) => Promise<void>
-  handleGetFavoriteBooks: () => Promise<[FavoriteBook]>
+  handleGetFavoriteBooks: () => Promise<FavoriteBook[] | undefined>
 }
 
 const LibraryContex = createContext<LibraryContextType | undefined>(undefined);
@@ -44,10 +45,10 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [loading, setLoading] = useState<boolean>(true);
   const [page, setPage] = useState<number>(1);
   const [streamKey, setStreamKey] = useState<string | null>(null)
-  const [favoriteBook, setFavoriteBooks] = useState<[FavoriteBook]>()
+  const [favoriteBook, setFavoriteBooks] = useState<FavoriteBook[]>()
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth()!
+  const { user } = useAuth()
 
   useEffect(() => {
     const token = Cookies.get("userToken");
@@ -90,10 +91,10 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return;
       }
       verifyStreamKey(streamKey, user.id)
-        .then((res: any) => {
+        .then((res) => {
           console.log(res)
         })
-        .catch((err: any) => {
+        .catch((err: unknown) => {
           console.log(err)
           setStreamKey(null)
         })
@@ -124,7 +125,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
         return undefined;
       }
       console.log("fetching book by id", `${url}/get/book/${id}`)
-      const res: any = await axios.get(`${url}/get/book/${id}`);
+      const res = await axios.get(`${url}/get/book/${id}`);
       console.log("getBookById", res.data);
       if (res) {
         return res.data as Book;
@@ -204,7 +205,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   }
 
-  const toggleFavoriteBook = async (id: String) => {
+  const toggleFavoriteBook = async (id: string) => {
     try {
       const res = await axios.put(`${url}/toggle/favorite`, {
         bookId: id
@@ -275,7 +276,11 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     </LibraryContex.Provider>
   )
 };
-export const useLibrary = () => {
-  return useContext(LibraryContex);
+export const useLibrary = (): LibraryContextType => {
+  const context = useContext(LibraryContex);
+  if (context === undefined) {
+    throw new Error('useLibrary must be used within a LibraryProvider');
+  }
+  return context;
 };
 export default LibraryContex;

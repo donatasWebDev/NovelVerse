@@ -1,18 +1,8 @@
 import jwt from 'jsonwebtoken';
-import { Request, Response, NextFunction } from 'express';
-import { PrismaClient } from '@prisma/client';
-import {getRedisClient} from '../utils/redisClient';
-
-interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    name: string;
-    email: string;
-    emailVerified: boolean;
-  };
-}
-
-const prisma = new PrismaClient();
+import { Response, NextFunction } from 'express';
+import { getRedisClient } from '../utils/redisClient';
+import { prisma } from '../lib/prisma';
+import { AuthRequest, getErrorMessage } from '../types/auth';
 
 // Cache key prefix + TTL (15 minutes)
 const USER_CACHE_PREFIX = 'user:';
@@ -62,9 +52,9 @@ const protect = async (req: AuthRequest, res: Response, next: NextFunction) => {
 
     req.user = userData;
     next();
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Auth middleware error:', err);
-    res.status(401).json({ message: 'Invalid token', error: err.message });
+    res.status(401).json({ message: 'Invalid token', error: getErrorMessage(err) });
   }
 };
 

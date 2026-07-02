@@ -11,7 +11,7 @@ from caching.cache_opum import encode_opus, get_s3_key
 
 import numpy as np
 
-MAX_WORKERS = 3
+MAX_WORKERS = 10
 
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(threadName)s - %(levelname)s - %(message)s')

@@ -1,10 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { Play, Pause, Star } from "lucide-react";
+import { Play, Star } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Book } from "../types";
 import { useLibrary } from "../uttils/LibraryContext";
-import { useAuth } from "../uttils/AuthContex";
-import { start } from "repl";
 
 interface AudioBookCardProps extends Book {
   removeBook?: (id: string) => void;
@@ -24,7 +22,7 @@ export const AudioBookCard = ({
 }: AudioBookCardProps) => {
   const [isHover, setIsHover] =  useState<boolean>(false)
   const [userFavorite, setUserFavorite] = useState<boolean>(false)
-  const {toggleFavoriteBook} = useLibrary()!
+  const {toggleFavoriteBook} = useLibrary()
 
   useEffect(() => {
     if (!favoriteBooks) {

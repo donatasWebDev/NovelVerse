@@ -1,5 +1,4 @@
-import React from "react";
-import { LogOut, Settings } from "lucide-react";
+import { LogOut } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import {useAuth} from "../uttils/AuthContex.tsx";
 export const RegisterLogin = () => {

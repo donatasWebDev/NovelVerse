@@ -19,6 +19,18 @@ declare module 'express' {
 
 dotenv.config()
 
+function requireEnv(name: string): string {
+  const value = process.env[name]
+  if (!value) {
+    console.error(`${name} is not defined in .env file`)
+    process.exit(1)
+  }
+  return value
+}
+
+requireEnv('JWT_SECRET')
+requireEnv('SESSION_SECRET')
+
 const app = express()
 const server = createServer(app)
 const PORT = process.env.BACKEND_PORT || 5000

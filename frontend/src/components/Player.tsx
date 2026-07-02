@@ -1,10 +1,6 @@
 import React, { useState, useEffect, useRef, forwardRef, useCallback, useImperativeHandle } from 'react';
-import { useLibrary } from '../uttils/LibraryContext';
-import { BookCurrent } from '../types';
-import { inherits } from 'util';
 
 interface Props {
-  key: string
   isPlaying: boolean | undefined
   setterIsPlaying: (value: boolean) => void
   playSpeed: number
@@ -23,7 +19,7 @@ export interface PlayerCompRef {
   isAwaitingMoreData: () => boolean; // New method for parent to query buffer status
 }
 
-const Player = forwardRef<PlayerCompRef, Props>(({ key, isPlaying, duration, setterIsPlaying, playSpeed, loading, onRequestMoreData, volume, isMuted }, ref) => {
+const Player = forwardRef<PlayerCompRef, Props>(({ isPlaying, duration, setterIsPlaying, playSpeed, loading, onRequestMoreData, volume, isMuted }, ref) => {
 
   const mediaSourceRef = useRef<MediaSource | null>(null);
   const sourceBufferRef = useRef<SourceBuffer | null>(null);

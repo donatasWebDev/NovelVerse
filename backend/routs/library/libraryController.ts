@@ -1,15 +1,11 @@
 import { Response, Request } from 'express'
-import { PrismaClient, User } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import jwt from 'jsonwebtoken'
+import { prisma } from '../../lib/prisma'
+import { generateToken } from '../../lib/jwt'
+import { AuthRequest, getErrorMessage } from '../../types/auth'
 
 const pyServer = process.env.PY_SERVER_URL || 'Test_env_value_pyserver'
-
-interface AuthRequest extends Request {
-  user?: User
-  file?: Express.Multer.File
-}
-
-const prisma = new PrismaClient()
 
 function normalizeString(str: string): string {
   return str
@@ -27,7 +23,8 @@ export const addBook = async (req: Request, res: Response) => {
     const bookData = req.body // expect array of objects
 
     if (!bookData) {
-      return res.status(400).json({ message: 'Expected array of books' })
+      res.status(400).json({ message: 'Expected array of books' })
+      return
     }
 
     const formattedBook = {
@@ -53,9 +50,9 @@ export const addBook = async (req: Request, res: Response) => {
     res.status(200).json({
       message: `Processed ${book.title}`
     })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(error)
-    res.status(500).json({ message: error.message })
+    res.status(500).json({ message: getErrorMessage(error) })
   }
 }
 
@@ -64,12 +61,13 @@ export const addBooksBulk = async (req: Request, res: Response) => {
     const booksInput = req.body
 
     if (!Array.isArray(booksInput) || booksInput.length === 0) {
-      return res
+      res
         .status(400)
         .json({ message: 'Request body must be a non-empty array of books' })
+      return
     }
 
-    const books: any[] = []
+    const books: Prisma.BookCreateManyInput[] = []
     let skipped = 0
 
     for (const raw of booksInput) {
@@ -94,10 +92,10 @@ export const addBooksBulk = async (req: Request, res: Response) => {
         }
 
         books.push(bookData)
-      } catch (err: any) {
+      } catch (err: unknown) {
         skipped++
         console.warn(
-          `Skipped book: ${raw.title || 'no title'} - ${err.message}`,
+          `Skipped book: ${raw.title || 'no title'} - ${getErrorMessage(err)}`,
         )
       }
     }
@@ -115,11 +113,11 @@ export const addBooksBulk = async (req: Request, res: Response) => {
     } catch (error) {
       throw error
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Bulk import error:', error)
     res
       .status(500)
-      .json({ message: 'Bulk import failed', error: error.message })
+      .json({ message: 'Bulk import failed', error: getErrorMessage(error) })
   }
 }
 
@@ -158,8 +156,8 @@ export const getBookPage = async (req: Request, res: Response) => {
       totalPages,
       currentPage: skip,
     })
-  } catch (error: any) {
-    res.status(400).json({ message: error.message })
+  } catch (error: unknown) {
+    res.status(400).json({ message: getErrorMessage(error) })
   }
 }
 
@@ -183,8 +181,8 @@ export const getBookInfo = async (req: Request, res: Response) => {
       return
     }
     res.json(book)
-  } catch (error: any) {
-    res.status(500).json({ message: error.message })
+  } catch (error: unknown) {
+    res.status(500).json({ message: getErrorMessage(error) })
   }
 }
 
@@ -229,8 +227,8 @@ export const toggleFavoriteBook = async (req: AuthRequest, res: Response) => {
       book: { newFavorite },
     })
     return
-  } catch (error: any) {
-    res.status(500).json({ message: error.message })
+  } catch (error: unknown) {
+    res.status(500).json({ message: getErrorMessage(error) })
   }
 }
 
@@ -251,39 +249,45 @@ export const getFavoriteBooks = async (req: AuthRequest, res: Response) => {
     if (user) {
       res.status(200).json({ favoriteBooks: user.favoriteBooks })
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error(error)
-    res.status(500).json({ message: error.message })
+    res.status(500).json({ message: getErrorMessage(error) })
   }
 }
 
 export const getStreamKey = async (req: AuthRequest, res: Response) => {
   try {
-    const token = generateToken(req.user?.id)
-    res.json({ token: token })
-  } catch (error: any) {
-    res.status(500).json({ message: error.message })
+    if (!req.user?.id) {
+      res.status(401).json({ message: 'User is not authorized' })
+      return
+    }
+    const token = generateToken(req.user.id)
+    res.json({ token })
+  } catch (error: unknown) {
+    res.status(500).json({ message: getErrorMessage(error) })
   }
 }
 
 export const verifYStreamKey = (req: Request, res: Response) => {
   try {
     const { streamKey, userId } = req.body
-    const decoded: any = jwt.verify(streamKey, process.env.JWT_SECRET!)
+    const secret = process.env.JWT_SECRET
+    if (!secret) {
+      res.status(500).json({ valid: false, error: 'JWT_SECRET is not configured' })
+      return
+    }
+    const decoded = jwt.verify(streamKey, secret) as jwt.JwtPayload & { id?: string }
     console.log(streamKey, userId, decoded, req.body)
     if (!decoded?.id) {
       res.status(404).json({ valid: false, error: 'Invalid token' })
+      return
     }
     if (decoded.id === userId) {
       res.status(200).json({ valid: true })
     } else {
       res.status(401).json({ valid: false, error: 'User ID mismatch' })
     }
-  } catch (err) {
-    res.status(401).json({ valid: false, error: err })
+  } catch (err: unknown) {
+    res.status(401).json({ valid: false, error: getErrorMessage(err) })
   }
-}
-
-const generateToken = (id: any) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET!, { expiresIn: '30d' })
 }

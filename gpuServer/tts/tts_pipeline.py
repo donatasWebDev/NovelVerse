@@ -21,6 +21,7 @@ class TTSPipeline:
         self.sample_rate = sample_rate
         self.stop_event = stop_event
         self.pipeline = kokoro.KPipeline(lang_code='a', device=self.device)
+        self.resampler = torchaudio.transforms.Resample(orig_freq=24000, new_freq=self.sample_rate)
 
     def generate_audio_chunks(self, text):
         """Generates audio from text with robust cancellation support."""
@@ -47,10 +48,8 @@ class TTSPipeline:
                     logging.info(f"Task {self.worker_id}: Cancellation detected. Stopping generation.")
                     break
 
-                resampler = torchaudio.transforms.Resample(orig_freq=24000, new_freq=self.sample_rate)
-
                 raw_chunk = audio_tensor.cpu().numpy().astype(self.dtype)
-                resampled_chunk = resampler(torch.from_numpy(raw_chunk).unsqueeze(0)).squeeze(0).numpy()
+                resampled_chunk = self.resampler(torch.from_numpy(raw_chunk).unsqueeze(0)).squeeze(0).numpy()
                 _buffer = np.concatenate((_buffer, resampled_chunk))
 
                 # Flush buffer in blocks, check cancellation at every iteration

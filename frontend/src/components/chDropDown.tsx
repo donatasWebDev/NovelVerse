@@ -1,7 +1,5 @@
-import React, { HtmlHTMLAttributes } from "react";
-import { LogOut, Settings } from "lucide-react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Book, BookCurrent, Chapter } from "../types"
+import { BookCurrent } from "../types";
 import { useLibrary } from "../uttils/LibraryContext";
 interface CategoryTabsProps {
     maxCh: number;
@@ -10,7 +8,7 @@ interface CategoryTabsProps {
 export const ChDropDown = ({ maxCh, currentChapterNumber }: CategoryTabsProps) => {
     const { p_id } = useParams() // Only get id from route params; chapter comes from prop
     const navigate = useNavigate()
-    const { handleSetCurrentBook, getCurrentBook } = useLibrary()!
+    const { handleSetCurrentBook, getCurrentBook } = useLibrary()
     // Only require chList for rendering; navigation to different chapters may or may not work
     // depending on whether we're in a routed context
     if (!maxCh) {

@@ -71,8 +71,9 @@ Write-Host "Waiting for services..."
 Start-Sleep -Seconds 8
 
 & (Join-Path $Root "scripts\dev-healthcheck.ps1")
+$healthOk = $?
 
-if ($LASTEXITCODE -eq 0) {
+if ($healthOk) {
     Write-Host ""
     Write-Host "=== Dev environment ready ==="
     Write-Host "  Frontend:  http://localhost:5173"

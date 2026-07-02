@@ -284,20 +284,17 @@ gpuServer/
 | 2026-07-02 | #4 — Dev tooling | Added `scripts/dev-start.*`, health checks with retry, `.env.example`. Health check: 3/3 pass. P0 fixes committed on separate branches. | Open PRs on GitHub |
 | 2026-07-02 | #5 — Cleanup | Killed stale dev servers (weather-app on :5173, NovelVerse on :5174/:5000). Removed legacy `serverless/`. Pushed branches for PR review. | Review & merge PRs |
 | 2026-07-02 | #6 — Phase 1 done | Smoke test 5/5. Register cookie fix. `integration/phase1-smoke` branch has all P0 fixes combined. Updated fix/chore branches. | Discuss merge → Phase 2 |
+| 2026-07-02 | #7 — Merge | Merged `integration/phase1-smoke` + `docs/refactor-progress` into `main`. Future: one branch per phase. | Phase 2 |
 
-## Git Branches (P0 work) — open PRs, do NOT merge locally
+## Git — Phase 1 merged to `main` (2026-07-02)
 
-| Branch | Status | Open PR |
-|--------|--------|---------|
-| `chore/dev-startup-scripts` | merged to `main` | — |
-| `chore/remove-legacy-serverless` | merged to `main` | — |
-| `fix/p0-backend-bootstrap` | pushed | [Create PR](https://github.com/donatasWebDev/NovelVerse/compare/main...fix/p0-backend-bootstrap?expand=1) |
-| `fix/p0-backend-library` | pushed | [Create PR](https://github.com/donatasWebDev/NovelVerse/compare/main...fix/p0-backend-library?expand=1) |
-| `fix/p0-backend-register` | pushed | [Create PR](https://github.com/donatasWebDev/NovelVerse/compare/main...fix/p0-backend-register?expand=1) |
-| `fix/p0-frontend-contexts` | pushed | [Create PR](https://github.com/donatasWebDev/NovelVerse/compare/main...fix/p0-frontend-contexts?expand=1) |
-| `fix/p0-gpu-sse` | pushed | [Create PR](https://github.com/donatasWebDev/NovelVerse/compare/main...fix/p0-gpu-sse?expand=1) |
-| `docs/refactor-progress` | pushed | [Create PR](https://github.com/donatasWebDev/NovelVerse/compare/main...docs/refactor-progress?expand=1) |
-| `integration/phase1-smoke` | pushed | All P0 fixes combined — use to test before merging individual PRs |
+> **Lesson:** Next phases use **one branch per phase** (e.g. `fix/phase1-p0`), not one branch per file.
+
+| What | Status |
+|------|--------|
+| Phase 1 P0 fixes + smoke tests | ✅ merged via `integration/phase1-smoke` |
+| `REFACTOR_PROGRESS.md` | ✅ merged via `docs/refactor-progress` |
+| Old per-file branches | Can be deleted after confirming `main` |
 
 > Repo canonical URL: `https://github.com/donatasWebDev/NovelVerse`
 

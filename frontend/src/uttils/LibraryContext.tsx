@@ -1,11 +1,9 @@
-import { ReactNode, createContext, useContext, useEffect, useState, useMemo, useReducer } from "react";
-import { useNavigate } from "react-router-dom";
+import { createContext, useContext, useEffect, useState, useMemo } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import Cookies from 'js-cookie';
 import { Book, BookCurrent, FavoriteBook } from "../types";
-import { list } from "postcss";
 import { useAuth } from "./AuthContex";
-import { promises } from "dns";
 
 // const isDev = import.meta.env.DEV;
 // const url = isDev
@@ -48,6 +46,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const [streamKey, setStreamKey] = useState<string | null>(null)
   const [favoriteBook, setFavoriteBooks] = useState<[FavoriteBook]>()
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth()!
 
   useEffect(() => {
@@ -115,6 +114,7 @@ export const LibraryProvider: React.FC<{ children: React.ReactNode }> = ({ child
     }
     catch (err) {
       console.log(err);
+      setLoading(false);
     }
   }
 

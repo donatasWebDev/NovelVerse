@@ -1,5 +1,7 @@
 # General / OS / Editor
 *.log
+.dev-pids/
+.dev-logs/
 .DS_Store
 .env
 .vscode
@@ -8,8 +10,11 @@
 **/node_modules/
 **/dist/
 **/build/
-frontend/.env*
+frontend/.env
+frontend/.env.local
 backend/.env
+!frontend/.env.example
+!backend/.env.example
 
 #local_only
 py_server/

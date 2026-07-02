@@ -111,14 +111,14 @@ These are production-breaking — not style issues.
 
 ## Refactor Phases
 
-### Phase 0 — Audit & Tracking ✅ IN PROGRESS
+### Phase 0 — Audit & Tracking ✅ COMPLETE
 - [x] Explore full monorepo structure
 - [x] Document tech stack and architecture
 - [x] Identify critical bugs and priority list
 - [x] Create this progress file
-- [ ] Run `tsc --noEmit` on frontend (baseline error count)
-- [ ] Run backend build (baseline)
-- [ ] Snapshot current git branch / commit hash
+- [x] Run `tsc --noEmit` on frontend (baseline: ~50 errors, mostly unused imports)
+- [x] Run backend build (baseline: passes)
+- [x] Snapshot current git branch / commit hash
 
 ### Phase 1 — Stop the Bleeding (P0 Bugs) ✅ COMPLETE
 > Fix runtime crashes and security holes before any restructuring.
@@ -130,8 +130,10 @@ These are production-breaking — not style issues.
 - [x] **B5** Restructure `backend/index.ts` bootstrap order
 - [x] **B7** Fix SSE error yield in `gpuServer/server.py`
 - [x] **B8** Fix inverted `handleRegister` return value
-- [x] Smoke-test: dev health check passes (backend /health, frontend, API)
-- [ ] Manual test: login → browse → play chapter flow (needs full stack + GPU)
+- [x] **B8b** Set `userToken` cookie on successful registration
+- [x] Automated smoke test: `dev-smoke-test.ps1` — **5/5 passed**
+- [x] Dev health check: **3/3 passed**
+- [ ] Manual browser test: login → browse → play chapter (play needs GPU + S3 — out of Phase 1 scope)
 
 ### Phase 2 — TypeScript & Lint Baseline
 > Get `tsc --noEmit` green on frontend; tighten backend types.
@@ -281,6 +283,7 @@ gpuServer/
 | 2026-07-02 | #3 — P0 Fixes | Fixed B1–B5, B7, B8. Backend builds clean. Removed dead imports in libraryController. Registration now returns token not hash. | Phase 2: TypeScript baseline |
 | 2026-07-02 | #4 — Dev tooling | Added `scripts/dev-start.*`, health checks with retry, `.env.example`. Health check: 3/3 pass. P0 fixes committed on separate branches. | Open PRs on GitHub |
 | 2026-07-02 | #5 — Cleanup | Killed stale dev servers (weather-app on :5173, NovelVerse on :5174/:5000). Removed legacy `serverless/`. Pushed branches for PR review. | Review & merge PRs |
+| 2026-07-02 | #6 — Phase 1 done | Smoke test 5/5. Register cookie fix. `integration/phase1-smoke` branch has all P0 fixes combined. Updated fix/chore branches. | Discuss merge → Phase 2 |
 
 ## Git Branches (P0 work) — open PRs, do NOT merge locally
 
@@ -294,12 +297,14 @@ gpuServer/
 | `fix/p0-frontend-contexts` | pushed | [Create PR](https://github.com/donatasWebDev/NovelVerse/compare/main...fix/p0-frontend-contexts?expand=1) |
 | `fix/p0-gpu-sse` | pushed | [Create PR](https://github.com/donatasWebDev/NovelVerse/compare/main...fix/p0-gpu-sse?expand=1) |
 | `docs/refactor-progress` | pushed | [Create PR](https://github.com/donatasWebDev/NovelVerse/compare/main...docs/refactor-progress?expand=1) |
+| `integration/phase1-smoke` | pushed | All P0 fixes combined — use to test before merging individual PRs |
 
 > Repo canonical URL: `https://github.com/donatasWebDev/NovelVerse`
 
 **Start dev (Windows):** `.\scripts\dev-start.ps1`  
 **Start dev (Git Bash):** `./scripts/dev-start.sh`  
 **Health check:** `.\scripts\dev-healthcheck.ps1`  
+**Phase 1 smoke test:** `.\scripts\dev-smoke-test.ps1`  
 **Stop:** `.\scripts\dev-stop.ps1`
 
 ---
@@ -357,4 +362,4 @@ gpuServer/
 
 ---
 
-*Last updated: 2026-07-02 — Session #5*
+*Last updated: 2026-07-02 — Session #6 — Phase 1 COMPLETE*

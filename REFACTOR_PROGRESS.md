@@ -11,8 +11,8 @@
 
 | Area | Stack | Files (src) | TS | Tests | CI |
 |------|-------|-------------|-----|-------|-----|
-| `frontend/` | React 18 + Vite + Tailwind | ~27 | Strict config, **50+ tsc errors** | None | None |
-| `backend/` | Express + Prisma + MongoDB + Redis | ~17 | Partial strict | None | Vercel only |
+| `frontend/` | React 18 + Vite + Tailwind | ~27 | Strict, **tsc clean** | None | None |
+| `backend/` | Express + Prisma + MongoDB + Redis | ~17 | Strict + typecheck | None | Vercel only |
 | `gpuServer/` | Flask + Kokoro TTS + PyTorch | ~10 py modules | N/A (Python) | None | None |
 
 **Architecture:** React client → Express API (JWT + SSE proxy) → Flask GPU server (scrape + TTS) → AWS S3 cache
@@ -135,32 +135,32 @@ These are production-breaking — not style issues.
 - [x] Dev health check: **3/3 passed**
 - [ ] Manual browser test: login → browse → play chapter (play needs GPU + S3 — out of Phase 1 scope)
 
-### Phase 2 — TypeScript & Lint Baseline
+### Phase 2 — TypeScript & Lint Baseline ✅ COMPLETE
 > Get `tsc --noEmit` green on frontend; tighten backend types.
 
 #### Frontend
-- [ ] Remove all phantom/wrong imports (postcss, dns, util, etc.)
-- [ ] Add `VITE_*` env types to `vite-env.d.ts`
-- [ ] Add `@types/event-source-polyfill` or module declaration
-- [ ] Replace `any` in contexts (`AuthContex`, `LibraryContext`, `useSocket`)
-- [ ] Fix `VolumeButton` ref prop mismatch
-- [ ] Safe context hooks (throw if undefined, remove `!` assertions)
-- [ ] Pin `latest` deps (`lucide-react`, `react-router-dom`)
-- [ ] Consolidate ESLint config (`.eslintrc.cjs` vs `eslint.config.js`)
-- [ ] Add `typecheck` script: `"typecheck": "tsc --noEmit"`
+- [x] Remove all phantom/wrong imports (postcss, dns, util, etc.)
+- [x] Add `VITE_*` env types to `vite-env.d.ts`
+- [x] Add `@types/event-source-polyfill` or module declaration
+- [x] Replace `any` in contexts (`AuthContex`, `LibraryContext`, `useSocket`)
+- [x] Fix `VolumeButton` ref prop mismatch
+- [x] Safe context hooks (throw if undefined, remove `!` assertions)
+- [x] Pin `latest` deps (`lucide-react`, `react-router-dom`)
+- [x] Consolidate ESLint config (`.eslintrc.cjs` vs `eslint.config.js`)
+- [x] Add `typecheck` script: `"typecheck": "tsc --noEmit"`
 
 #### Backend
-- [ ] Single shared `PrismaClient` in `lib/prisma.ts` (3 instances today)
-- [ ] Unify `AuthRequest` type (defined 3× separately)
-- [ ] Replace `any` on `req.redis`, `generateToken`, error handlers
-- [ ] Validate `JWT_SECRET` / `SESSION_SECRET` at startup (fail fast)
-- [ ] Remove dead imports in `libraryController.ts`
-- [ ] Add `typecheck` script
+- [x] Single shared `PrismaClient` in `lib/prisma.ts` (3 instances today)
+- [x] Unify `AuthRequest` type (defined 3× separately)
+- [x] Replace `any` on `req.redis`, `generateToken`, error handlers
+- [x] Validate `JWT_SECRET` / `SESSION_SECRET` at startup (fail fast)
+- [x] Remove dead imports in `libraryController.ts`
+- [x] Add `typecheck` script
 
 #### gpuServer
-- [ ] Fix `scrape.py` return type mismatch `(title, text)` vs text-only
-- [ ] Align `MAX_WORKERS` between `server.py` and `task_queue.py`
-- [ ] Create `Resample` once in `TTSPipeline.__init__` (perf)
+- [x] Fix `scrape.py` return type mismatch `(title, text)` vs text-only
+- [x] Align `MAX_WORKERS` between `server.py` and `task_queue.py`
+- [x] Create `Resample` once in `TTSPipeline.__init__` (perf)
 
 ### Phase 3 — Structure & Naming
 > Rename, reorganize, extract layers. One concern per file.
@@ -285,6 +285,7 @@ gpuServer/
 | 2026-07-02 | #5 — Cleanup | Killed stale dev servers (weather-app on :5173, NovelVerse on :5174/:5000). Removed legacy `serverless/`. Pushed branches for PR review. | Review & merge PRs |
 | 2026-07-02 | #6 — Phase 1 done | Smoke test 5/5. Register cookie fix. `integration/phase1-smoke` branch has all P0 fixes combined. Updated fix/chore branches. | Discuss merge → Phase 2 |
 | 2026-07-02 | #7 — Merge | Merged `integration/phase1-smoke` + `docs/refactor-progress` into `main`. Future: one branch per phase. | Phase 2 |
+| 2026-07-02 | #8 — Phase 2 | Frontend `tsc --noEmit` green (50+ → 0). Backend shared prisma/jwt/auth types, env validation. gpuServer scrape/MAX_WORKERS/Resample fixes. Branch `fix/phase2-typescript`. | Phase 3 |
 
 ## Git — Phase 1 merged to `main` (2026-07-02)
 
@@ -359,4 +360,4 @@ gpuServer/
 
 ---
 
-*Last updated: 2026-07-02 — Session #6 — Phase 1 COMPLETE*
+*Last updated: 2026-07-02 — Session #8 — Phase 2 COMPLETE*

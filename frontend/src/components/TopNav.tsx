@@ -22,7 +22,7 @@ export function MobileProfileDropdown({
 }: MobileProfileDropdownProps) {
   const [isOpen, setIsOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
-  const { user, handleUserLogout } = useAuth()!
+  const { user, handleUserLogout } = useAuth()
   // Close on click outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {

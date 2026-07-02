@@ -3,10 +3,9 @@ import { AudioBookCard } from "../components/AudioBookCard";
 import { CategoryTabs } from "../components/CategoryTabs";
 import { ContinueReading } from "../components/ContinueReading";
 import { useLibrary } from "../uttils/LibraryContext";
-import { Book, BookCurrent, FavoriteBook } from "../types";
+import { Book, BookCurrent } from "../types";
 import { useAuth } from "../uttils/AuthContex";
 import { useNavigate } from "react-router-dom";
-import { get } from "http";
 import { SearchIcon } from "lucide-react";
 import InfiniteScroll from "react-infinite-scroll-component";
 const categories = [
@@ -19,18 +18,16 @@ const categories = [
 ];
 
 export const HomePage = () => {
-  const { library, getCurrentBook, streamKey, fetchLibrary, handleGetFavoriteBooks } = useLibrary()!; // Assumed library context
+  const { library, getCurrentBook, fetchLibrary, handleGetFavoriteBooks } = useLibrary();
   // const {connect, isConnected} = useSocket();
   const [books, setBooks] = useState<Book[]>([]);
   const [bookCurrent, setBookCurrent] = useState<BookCurrent | null>(null)
   const [activeCategory, setActiveCategory] = useState("All Books");
-  const [loading, setLoading] = useState(true); // Track loading state
   const [favoriteBooks, setFavoriteBooks] = useState<Book[] | null >()
   const [page, setPage] = useState<number>(getCurrentPage());
   const [hasMore, setHasMore] = useState(true);
-  const { user } = useAuth()!
+  const { user } = useAuth()
   const [searchQuery, setSearchQuery] = useState<string>("");
-  const [totalBooks, setTotalBooks] = useState<number | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const navigate = useNavigate()
   const limit = 20
@@ -55,10 +52,7 @@ export const HomePage = () => {
       } else {
         setBooks(prev => [...prev, ...library.books]); // ← THIS NOW ACTUALLY ADDS
       }
-      setLoading(false); // Mark loading as false when library is set
-
       setHasMore(library.books.length === limit);
-      setTotalBooks(library.totalBooks || null);
     }
     console.log("Library", library)
   }, [library]); // Re-run effect when library changes

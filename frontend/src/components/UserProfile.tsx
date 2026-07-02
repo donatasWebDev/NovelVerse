@@ -2,6 +2,7 @@ import { LogOut, Settings } from "lucide-react";
 import { useAuth } from "../uttils/AuthContex";
 export const UserProfile = () => {
   const { user, handleUserLogout } = useAuth();
+  if (!user) return null;
   const nameCapitalized = user.name.charAt(0).toUpperCase() + user.name.slice(1);
   return <div className="mt-auto border-t border-gray-700 pt-6">
     <div className="flex items-center gap-3 mb-6">

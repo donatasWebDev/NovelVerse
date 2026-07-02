@@ -1,8 +1,7 @@
 import { Play, Pause } from "lucide-react";
-import { Book, BookCurrent } from "../types";
+import { BookCurrent } from "../types";
 import { useNavigate } from "react-router-dom";
-import Player from "../components/Player";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 interface props {
   book: BookCurrent;

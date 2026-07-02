@@ -137,8 +137,8 @@ def load_chapters(chapters):
         return
             
     ch_title, ch_url = chapters[selected_ch]
-    title, text = scrape_novel_chapter(ch_url)
-    if text and title:
-        return text, title, selected_ch+1
+    text = scrape_novel_chapter(ch_url)
+    if text:
+        return text, ch_title, selected_ch+1
     else:
         logging.error(f"Chapter {selected_ch+1} not found.")

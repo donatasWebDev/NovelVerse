@@ -1,4 +1,3 @@
-import React from "react";
 export const SignupPage = () => {
   return <div className="min-h-screen flex items-center justify-center bg-gray-900 p-4">
       <div className="w-full max-w-md bg-gray-800 rounded-lg shadow-lg p-6">

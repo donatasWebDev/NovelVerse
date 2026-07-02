@@ -1,17 +1,12 @@
-import { PrismaClient, User, Book, Prisma, LatestRead } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import dotenv from 'dotenv';
-import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { Request, Response } from 'express';
+import { prisma } from '../../lib/prisma';
+import { generateToken } from '../../lib/jwt';
+import { AuthRequest, getErrorMessage } from '../../types/auth';
 
 dotenv.config();
-
-interface AuthRequest extends Request {
-  user?: User;
-  transporter?: any; // Define a more specific type if possible
-}
-
-const prisma = new PrismaClient();
 
 const registerUser = async (req: AuthRequest, res: Response) => {
   try {
@@ -34,12 +29,11 @@ const registerUser = async (req: AuthRequest, res: Response) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    const userData: any ={
+    const userData: Prisma.UserCreateInput = {
       name,
       email,
       password: hashedPassword,
       emailVerified: true,
-      latestReadId: null
     }
     const user = await prisma.user.create({data: userData});
 
@@ -55,8 +49,8 @@ const registerUser = async (req: AuthRequest, res: Response) => {
       res.status(400).json({ message: 'wrong user data' });
       return
     }
-  } catch (error: any) {
-    res.status(500).json({ message: error.message });
+  } catch (error: unknown) {
+    res.status(500).json({ message: getErrorMessage(error) });
   }
 };
 
@@ -95,8 +89,8 @@ const login = async (req: Request, res: Response) => {
         token: generateToken(user.id),
       });
     }
-  } catch (error: any) {
-    res.status(400).json({ message: error.message });
+  } catch (error: unknown) {
+    res.status(400).json({ message: getErrorMessage(error) });
   }
 };
 
@@ -113,9 +107,9 @@ const getCurrentUser = async (req: AuthRequest, res: Response) => {
       user
       // avatarUrl: user.pic,
     });
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.log(e);
-    res.status(500).json({message: e.message})
+    res.status(500).json({ message: getErrorMessage(e) })
     return
   }
 };
@@ -128,13 +122,13 @@ const getAllUsers = async (req: Request, res: Response) => {
       return
     }
      res.status(200).json({
-      users: users.map((user) => ({
+      users: users.map((user: { name: string; id: string }) => ({
         name: user.name,
         _id: user.id,
       })),
     });
-  } catch (err: any) {
-    res.status(500).json({ message: err.message });
+  } catch (err: unknown) {
+    res.status(500).json({ message: getErrorMessage(err) });
   }
 };
 
@@ -180,8 +174,8 @@ const getLatestBook = async (req: AuthRequest, res: Response) => {
       return
     }
     res.status(200).json({ latestBook: latestBook });
-  } catch (error: any) {
-    res.status(500).json({ message: error.message });
+  } catch (error: unknown) {
+    res.status(500).json({ message: getErrorMessage(error) });
   }
 };
 
@@ -196,7 +190,7 @@ const setLatestBook = async (req: AuthRequest, res: Response) => {
       return
     }
 
-    const latestReadData: any = {
+    const latestReadData: Prisma.LatestReadUncheckedCreateInput = {
       bookId,
       chapterId: chapter,
     }
@@ -220,13 +214,9 @@ const setLatestBook = async (req: AuthRequest, res: Response) => {
     }
 
     res.status(201).json({ message: 'latest book updated successfully', user });
-  } catch (error: any) {
-    res.status(500).json({ message: error.message });
+  } catch (error: unknown) {
+    res.status(500).json({ message: getErrorMessage(error) });
   }
-};
-
-const generateToken = (id: any) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET!, { expiresIn: '30d' });
 };
 
 export {

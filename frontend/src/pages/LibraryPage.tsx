@@ -1,9 +1,9 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { AudioBookCard } from "../components/AudioBookCard";
 import { useLibrary } from "../uttils/LibraryContext";
 import { Book } from "../types";
 export const LibraryPage = () => {
-  const { handleGetFavoriteBooks } = useLibrary()!; // Assumed library context
+  const { handleGetFavoriteBooks } = useLibrary();
   const [books, setBooks] = useState<Book[]>([])
   
   useEffect(() => {

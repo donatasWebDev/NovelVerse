@@ -130,7 +130,8 @@ These are production-breaking — not style issues.
 - [x] **B5** Restructure `backend/index.ts` bootstrap order
 - [x] **B7** Fix SSE error yield in `gpuServer/server.py`
 - [x] **B8** Fix inverted `handleRegister` return value
-- [ ] Smoke-test: login → browse → play chapter flow (needs running services)
+- [x] Smoke-test: dev health check passes (backend /health, frontend, API)
+- [ ] Manual test: login → browse → play chapter flow (needs full stack + GPU)
 
 ### Phase 2 — TypeScript & Lint Baseline
 > Get `tsc --noEmit` green on frontend; tighten backend types.
@@ -278,6 +279,36 @@ gpuServer/
 | 2026-07-02 | #1 — Audit | Full codebase exploration (frontend, backend, gpuServer). Created this file. Identified 10 critical bugs, 7-phase roadmap. | Phase 1: Fix P0 bugs (B1–B5, B7–B8) |
 | 2026-07-02 | #2 — Planning | Agreed work line: P0 airlock (1–2 sessions) → structure → types/tests → CI. Documented resume instructions. | Phase 1: start P0 fixes |
 | 2026-07-02 | #3 — P0 Fixes | Fixed B1–B5, B7, B8. Backend builds clean. Removed dead imports in libraryController. Registration now returns token not hash. | Phase 2: TypeScript baseline |
+| 2026-07-02 | #4 — Dev tooling | Added `scripts/dev-start.*`, health checks with retry, `.env.example`. Health check: 3/3 pass. P0 fixes committed on separate branches. | Merge branches → manual play test |
+
+## Git Branches (P0 work)
+
+| Branch | Commit focus |
+|--------|----------------|
+| `chore/dev-startup-scripts` | Dev start/stop/healthcheck scripts + `.env.example` |
+| `fix/p0-backend-bootstrap` | `backend/index.ts` bootstrap order |
+| `fix/p0-backend-library` | `titleNormalize` bug + dead imports |
+| `fix/p0-backend-register` | Registration returns JWT, not password hash |
+| `fix/p0-frontend-contexts` | Auth loading + `useLocation` fixes |
+| `fix/p0-gpu-sse` | SSE error yield fix |
+| `docs/refactor-progress` | This progress file |
+
+**Merge order (into `main`):**
+```bash
+git checkout main
+git merge chore/dev-startup-scripts
+git merge fix/p0-backend-bootstrap
+git merge fix/p0-backend-library
+git merge fix/p0-backend-register
+git merge fix/p0-frontend-contexts
+git merge fix/p0-gpu-sse
+git merge docs/refactor-progress
+```
+
+**Start dev (Windows):** `.\scripts\dev-start.ps1`  
+**Start dev (Git Bash):** `./scripts/dev-start.sh`  
+**Health check:** `.\scripts\dev-healthcheck.ps1`  
+**Stop:** `.\scripts\dev-stop.ps1`
 
 ---
 
@@ -334,4 +365,4 @@ gpuServer/
 
 ---
 
-*Last updated: 2026-07-02 — Session #3*
+*Last updated: 2026-07-02 — Session #4*
